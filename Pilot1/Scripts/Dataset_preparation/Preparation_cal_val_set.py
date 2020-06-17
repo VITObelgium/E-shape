@@ -8,8 +8,8 @@ import random
 dir_data = r'S:\eshape\Pilot 1\results\S1_S2_data'
 Cropsar_data = r'S:\eshape\Pilot 1\results\S1_S2_data\CropSAR'
 ro_interest = 'ro110'
-Test_nr = r'Test4'
-metrics_exclude = ['slope','coh']
+Test_nr = r'Test5'
+metrics_exclude = ['coh']
 ##### Step 0: Prepare the raw dataframes so that they can be used to extract data around the harvest
 # a)Filter the coherence df so only the VV coherence is used
 files_coherence = glob.glob(os.path.join(dir_data,'S1_coherence_*_dates_{}.csv').format(ro_interest))
