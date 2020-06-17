@@ -6,7 +6,7 @@ import os
 import  glob
 
 
-year = 2019
+year = 2018
 df_harvest = pd.read_excel(r"S:\eshape\Pilot 1\data\WIG_data\{}_WIG_planting_harvest_dates_overview.xlsx".format(str(year)), sheet_name='{}_WIG_planting_harvest_dates'.format(str(year)))
 ros = ['ro88','ro110','ro161']
 VI_data = r'S:\eshape\Pilot 1\results\tmp'
@@ -17,7 +17,7 @@ counter = 0
 #### See for which field IDs some data on harvest date, fAPAR and coherence is available
 for ro in ros:
     folder =os.path.join(IDs_harvest_date,ro,str(year))
-    ids= glob.glob(folder+r'\\**\\*.png')
+    ids= glob.glob(folder+r'\\**\\*Coherence_{}.png'.format(ro))
     ids = [os.path.split(item)[-1].rsplit('_fAPAR')[0].rsplit(str(year)+'_')[1] for item in ids]
     ids_fapar.append(ids)
     if counter == 0:
@@ -28,7 +28,7 @@ for ro in ros:
     counter +=1
 ids_fapar = [item for sublist in ids_fapar for item in sublist] ### all the ids that can  be used to built a training/validation dataset
 ids_fapar = list(set(ids_fapar))
-df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\{}_fAPAR_{}_WIG_planting_harvest_dates_allfields.csv".format(str(year),str(year)))
+df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\{}_fAPAR_{}_WIG_planting_harvest_dates_allfields.csv".format(str(year),str(year)))
 ids_fields = list(df_fAPAR.columns) ### all field IDS (reference) with some data on fAPAR for tht year
 ids_fields.remove('Date')
 vh_ids = np.arange(0.1,len(ids_fields),1) # the name of the IDS in the coherence dataframe based on the amount of reference fields in the fAPAR dataframe
@@ -40,7 +40,7 @@ ids_remove_no_coherence = []
 for ro in ros:
     print('\n extracting data for RO: {}'.format(ro))
     counter_ids_loop = 0
-    df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_coherence_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year), str(year), ro))
+    df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\S1_coherence_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year), str(year), ro))
     df_coherence = df_coherence.rename(columns={'polygon': 'Date'})
     df_coherence = df_coherence.iloc[2:]
     dates_coherence = df_coherence.Date.to_list()
@@ -65,8 +65,8 @@ for ro in ros:
 
             df_fAPAR_extract['diff_harvest'] = (df_fAPAR_extract.Date-df_harvest_date.values[0])
             df_fAPAR_extract.sort_values(by=['diff_harvest'], ascending=True, inplace=True)
-            fAPAR_harvest_model = df_fAPAR_extract[df_fAPAR_extract.diff_harvest > pd.to_timedelta(0)].iloc[0:2][id].to_list() ### Extraction of fAPAR for two closest dates after harvest
-            fAPAR_harvest_model.append(df_fAPAR_extract[df_fAPAR_extract.diff_harvest < pd.to_timedelta(0)].iloc[-1][id]) #### Addition of fAPAR for closest date before harvest
+            fAPAR_harvest_model = [df_fAPAR_extract[df_fAPAR_extract.diff_harvest < pd.to_timedelta(0)].iloc[-1][id]] #### Addition of fAPAR for closest date before harvest
+            fAPAR_harvest_model.extend(df_fAPAR_extract[df_fAPAR_extract.diff_harvest > pd.to_timedelta(0)].iloc[0:2][id].to_list()) ### Extraction of fAPAR for two closest dates after harvest
             fAPAR_harvest_model = [item*0.005 for item in fAPAR_harvest_model]
             if len(fAPAR_harvest_model) <3:
                 fAPAR_harvest_model.append(np.nan)
@@ -85,8 +85,8 @@ for ro in ros:
             continue
         df_coherence_extract['diff_harvest'] = (df_coherence_extract.Date-df_harvest_date.values[0])
         df_coherence_extract.sort_values(by = ['diff_harvest'], ascending = True, inplace=True)
-        coherence_harvest_model.append(df_coherence_extract[df_coherence_extract.diff_harvest> pd.to_timedelta(0)].iloc[0:2][id].to_list())
-        coherence_harvest_model.append(df_coherence_extract[df_coherence_extract.diff_harvest< pd.to_timedelta(0)].iloc[-2:][id].to_list())
+        coherence_harvest_model.append(df_coherence_extract[df_coherence_extract.diff_harvest< pd.to_timedelta(0)].iloc[-2:][id].to_list()) # before
+        coherence_harvest_model.append(df_coherence_extract[df_coherence_extract.diff_harvest > pd.to_timedelta(0)].iloc[0:2][id].to_list())  # after
         coherence_harvest_model = [item for sublist in coherence_harvest_model for item in sublist]
         coherence_harvest_model = [item*0.004 for item in coherence_harvest_model ]
         if counter_ids_loop == 0 and ro_loop_counter == 0:
@@ -138,7 +138,7 @@ df_validation['y'] = y
 df_validation.index.name = 'ID_field'
 
 
-df_validation.to_csv(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Mehrdad\validation\Validation_data_eshape_{}.csv'.format(str(year)))
+df_validation.to_csv(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Mehrdad\validation\Validation_data_eshape_{}_update_order.csv'.format(str(year)))
 
 
 
