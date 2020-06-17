@@ -2,7 +2,7 @@ import openeo
 from openeo.rest.conversions import timeseries_json_to_pandas
 import pandas as pd
 import geopandas as gpd
-import geojson
+#import geojson
 import shapely
 from shapely.ops import transform
 from functools import partial
@@ -55,19 +55,19 @@ def get_geometry(field, region='Flanders'):
     bbox = bbox.bounds
     return bbox, geometry, minx, miny, maxx, maxy, field
 
-shp_dir = r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp"
-WIG_fields = gpd.read_file(r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp")
-start = '2020-01-01'
-end = '2020-12-31'
+shp_dir = r"S:\eshape\Pilot 1\data\WIG_data\Field_error.shp"
+WIG_fields = gpd.read_file(r"S:\eshape\Pilot 1\data\WIG_data\Field_error.shp")
+start = '2019-01-01'
+end = '2019-12-31'
 start_year = start[0:4]
 end_year = end[0:4]
 start_month = start[5:7]
 end_month = end[5:7]
 start_day = start[8:10]
 end_day = end[8:10]
-connection_coherence = openeo.connect("http://openeo-dev.vgt.vito.be/openeo/0.4.0")
-#connection = openeo.connect("http://openeo.vgt.vito.be/openeo/0.4.0")
-connection_coherence.authenticate_basic("bontek","bontek123")
+#connection_coherence = openeo.connect("http://openeo-dev.vgt.vito.be/openeo/0.4.0")
+connection = openeo.connect("http://openeo.vgt.vito.be/openeo/0.4.0")
+connection.authenticate_basic("bontek","bontek123")
 outdir = r'S:\eshape\Pilot 1\results\tmp'
 #for index,field in WIG_fields.iterrows():
 #
@@ -89,21 +89,21 @@ outdir = r'S:\eshape\Pilot 1\results\tmp'
 #         df_FAPAR.dropna(how='all', inplace=True)
 #         df_FAPAR.to_csv("{}.csv".format(os.path.join(outdir,'tmp',start_year+'_'+'fAPAR'+'_Flax_fields'+field.id)))
 ## coherence
-datacube = connection_coherence.load_collection("TERRASCOPE_S1_SLC_COHERENCE_V1")
+# datacube = connection_coherence.load_collection("TERRASCOPE_S1_SLC_COHERENCE_V1")
 # s1_time_series_dict = datacube \
 #     .filter_temporal(start, end) \
 #     .polygonal_mean_timeseries(WIG_fields) \
 #     .execute_batch(os.path.join(outdir, 'S1_coherence_'+'TAP_Monitoring_fields_' + start_year+'_'+os.path.split(shp_dir)[-1][0:-4]+'.json')) #.format(os.path.join(outdir,'S1_coherence_'+start_year)))
-for index, field in WIG_fields.iterrows():
-    if not os.path.exists("{}.csv".format(os.path.join(outdir, 'tmp', start_year + '_' + 'S1_Coherence' + '_TAP_Monitoring_fields_' + field.id))):
-        coh_time_series_dict = datacube \
-                .filter_temporal(start, end) \
-                .polygonal_mean_timeseries(field.geometry) \
-                .execute()
-        df_coherence = timeseries_json_to_pandas(coh_time_series_dict)
-        df_coherence.index = pd.to_datetime(df_coherence.index)
-        df_coherence.dropna(how='all', inplace=True)
-        df_coherence.to_csv("{}.csv".format(os.path.join(outdir,'tmp',start_year+'_'+'S1_Coherence'+'_TAP_Monitoring_fields_'+field.id)))
+# for index, field in WIG_fields.iterrows():
+#     if not os.path.exists("{}.csv".format(os.path.join(outdir, 'tmp', start_year + '_' + 'S1_Coherence' + '_TAP_Monitoring_fields_' + field.id))):
+#         coh_time_series_dict = datacube \
+#                 .filter_temporal(start, end) \
+#                 .polygonal_mean_timeseries(field.geometry) \
+#                 .execute()
+#         df_coherence = timeseries_json_to_pandas(coh_time_series_dict)
+#         df_coherence.index = pd.to_datetime(df_coherence.index)
+#         df_coherence.dropna(how='all', inplace=True)
+#         df_coherence.to_csv("{}.csv".format(os.path.join(outdir,'tmp',start_year+'_'+'S1_Coherence'+'_TAP_Monitoring_fields_'+field.id)))
 
 #with open("{}.json".format(os.path.join(outdir, 'S1_coherence_'+'Flax_fields_' + start_year+'_'+os.path.split(shp_dir)[-1][0:-4])), 'r') as c:
 # with open(r"S:\eshape\Pilot 1\results\S1_coherence_Flax_fields_2018_vlas_2018_wgs_all.json") as c:
@@ -140,26 +140,26 @@ for index, field in WIG_fields.iterrows():
 #         df_S1.dropna(how='all', inplace=True)
 #         df_S1.to_csv("{}.csv".format(os.path.join(outdir,'tmp',start_year+'_'+'S1_Ascending'+'_TAP_Monitoring_fields_'+field.id)))
 
-#datacube2 =  connection.load_collection('S1_GRD_SIGMA0_DESCENDING')
+datacube2 =  connection.load_collection('S1_GRD_SIGMA0_DESCENDING')
 # s1_time_series_descending = datacube2\
 #         .filter_temporal(start,end)\
 #     .polygonal_mean_timeseries(WIG_fields)\
 #     .execute_batch(os.path.join(outdir, 'S1_Descending_' + start_year+'_'+os.path.split(shp_dir)[-1][0:-4]+'.json'))
 
 #
-# for index, field in WIG_fields.iterrows():
-#     if not os.path.exists("{}.csv".format(os.path.join(outdir,'tmp',start_year+'_'+'S1_Descending'+'_TAP_Monitoring_fields_' +field.id))):
-#         s1_time_series_descending = datacube2 \
-#             .filter_temporal(start, end) \
-#             .polygonal_mean_timeseries(field.geometry) \
-#             .execute()
-#
-#         ids = list(WIG_fields.id.values)
-#         df_S1 = timeseries_json_to_pandas(s1_time_series_descending)
-#         #df_S1.columns = ids
-#         df_S1.index = pd.to_datetime(df_S1.index)
-#         df_S1.dropna(how='all', inplace=True)
-#         df_S1.to_csv("{}.csv".format(os.path.join(outdir,'tmp',start_year+'_'+'S1_Descending'+'_TAP_Monitoring_fields_'+field.id)))
+for index, field in WIG_fields.iterrows():
+    if not os.path.exists("{}.csv".format(os.path.join(outdir,start_year+'_'+'S1_Descending'+'_TAP_Monitoring_fields_' +field.id+'_Test'))):
+        s1_time_series_descending = datacube2 \
+            .filter_temporal(start, end) \
+            .polygonal_mean_timeseries(field.geometry) \
+            .execute()
+
+        ids = list(WIG_fields.id.values)
+        df_S1 = timeseries_json_to_pandas(s1_time_series_descending)
+        #df_S1.columns = ids
+        df_S1.index = pd.to_datetime(df_S1.index)
+        df_S1.dropna(how='all', inplace=True)
+        df_S1.to_csv("{}.csv".format(os.path.join(outdir,start_year+'_'+'S1_Descending'+'_TAP_Monitoring_fields_'+field.id+'_Test')))
 
 
 
