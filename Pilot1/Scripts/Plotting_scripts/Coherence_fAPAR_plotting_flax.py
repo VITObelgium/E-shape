@@ -11,7 +11,7 @@ start = '{}-01-01'.format(str(year))
 end = '{}-12-31'.format(str(year))
 idx = pd.date_range(start,end)
 ##### loading of df's
-df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\{}_fAPAR_{}_Flax_fields_mowing_dates_allfields.csv".format(str(year),str(year)))
+df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\{}_fAPAR_{}_Flax_fields_mowing_dates_allfields.csv".format(str(year),str(year)))
 df_fAPAR = df_fAPAR.rename(columns = {'Unnamed: 0':'Date'})
 ids = list(df_fAPAR.columns)
 #ids.remove('Date')
