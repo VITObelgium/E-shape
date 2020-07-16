@@ -7,11 +7,11 @@ from datetime import datetime
 year = 2019
 start = '{}-01-01'.format(str(year))
 end = '{}-12-31'.format(str(year))
-S1_orbit_pass = r'Descending'
+S1_orbit_pass = r'Ascending'
 id_dataset = r'TAP_Monitoring'
 idx = pd.date_range(start,end)
-ro = 'ro110'
-Basefolder = r'S:\eshape\Pilot 1\results'
+ro = 'ro161'
+Basefolder = r'S:\eshape\Pilot 1\results\Harvest_date'
 #WIG_fields = gpd.read_file(r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all.shp")
 WIG_fields = pd.read_csv(r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\{}_TAP_monitoring_experiment.csv".format(str(year)))
 ids = WIG_fields.id.to_list()
@@ -20,21 +20,21 @@ df_combine = pd.DataFrame()
 # df_combine = df_combine.set_index('Date')
 
 ##### fAPAR
-# csv_files = glob.glob(os.path.join(r'S:\eshape\Pilot 1\results\tmp','2018_fAPAR_Flax*.CSV'))
+# csv_files = glob.glob(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\tmp','2018_fAPAR_Flax*.CSV'))
 #
 # for id in ids:
 #     csv_select = [item for item in csv_files if id in item]
-#     df = pd.read_csv(os.path.join(r'S:\eshape\Pilot 1\results',csv_select[0]), header = None)
+#     df = pd.read_csv(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date',csv_select[0]), header = None)
 #     df.index = pd.to_datetime(df[0])
 #     df = df.reindex(idx,fill_value = np.nan)
 #     df_combine['{}'.format(str(id))] = df[1]
-# if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results','2018_fAPAR_2018_Flax_fields_mowing_dates_allfields.csv')):
-#     df_combine.to_csv(os.path.join(r'S:\eshape\Pilot 1\results','2018_fAPAR_2018_Flax_fields_mowing_dates_allfields.csv'))
+# if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date','2018_fAPAR_2018_Flax_fields_mowing_dates_allfields.csv')):
+#     df_combine.to_csv(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date','2018_fAPAR_2018_Flax_fields_mowing_dates_allfields.csv'))
 
 
 ### S1 data
 csv_files = glob.glob(os.path.join(os.path.join(Basefolder,'tmp'),'{}_S1_{}_{}*.CSV'.format(str(year),S1_orbit_pass,id_dataset)))
-t_88 = pd.date_range("{}-01-02".format(str(year)),"{}-12-31".format(str(year)),freq="6D",tz = 'utc').to_pydatetime()
+t_88 = pd.date_range("{}-01-05".format(str(year)),"{}-12-31".format(str(year)),freq="6D",tz = 'utc').to_pydatetime()
 df_combine['Date']= t_88
 df_combine = df_combine.set_index('Date')
 df_combine['Date'] = [item.strftime('%Y-%m-%d') for item in list(df_combine.index)]

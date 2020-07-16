@@ -54,11 +54,17 @@ print('{} results found'.format(len(results)))
 
 ##### extraction of variables per field on the account
 df_monitoring_experiment_2019 = []
+df_phenology_2019 = []
 for p in range(len(results)):
     variety = results[p].get('_source').get('cropFenology').get('variety')
     id = results[p].get('_id')
     fieldname = results[p].get('_source').get('metadata').get('fieldName')
     area = results[p].get('_source').get('metadata').get('area')
+    df_phenology_field = pd.DataFrame.from_dict(results[p].get('_source').get('fenologies'))
+    try:
+        df_phenology_field['id'] = [id]* df_phenology_field.shape[0]
+    except:
+        df_phenology_field  =pd.DataFrame()
     try:
         planting_date = results[p].get('_source').get('cropFenology').get('plantingDate')
     except:
@@ -76,6 +82,8 @@ for p in range(len(results)):
     latitude_list = [results[p].get('_source').get('metadata').get('geometry').get('coordinates')[0][s][1] for s in range(len(results[p].get('_source').get('metadata').get('geometry').get('coordinates')[0]))]
     geometry = Polygon(zip(longitude_list, latitude_list))
     ### make dataframe of  it all:
+    df_phenology_field['croptype'] = [croptype] * df_phenology_field.shape[0]
+    df_phenology_2019.append(df_phenology_field)
     df_monitoring_experiment_2019.append(pd.concat([pd.DataFrame([variety], index = [str(p)], columns= (['variety'])),
                                               pd.DataFrame([id],index = [str(p)],columns=(['id'])),
                                              pd.DataFrame([fieldname], index= [str(p)], columns=(['fieldame'])),
@@ -87,13 +95,14 @@ for p in range(len(results)):
                                              pd.DataFrame([postal_code], index= [str(p)], columns= (['postal_code'])),
                                              pd.DataFrame([end_year], index= [str(p)], columns= (['end_year'])), pd.DataFrame([geometry], index= [str(p)], columns= (['geometry']))],axis= 1))
 
-
+df_phenology_2019 = pd.concat(df_phenology_2019)
+df_phenology_2019 = df_phenology_2019.to_csv(r'O:\calval\Crop_extract_cal\Crop_fields_stats\Reference_data\TAP\Development_stages_fields.csv', index = False)
 df_monitoring_experiment_2019 = pd.concat(df_monitoring_experiment_2019)
 if not os.path.exists(r'S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.csv'):
-
-    df_monitoring_experiment_2019.to_csv(r'S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.csv', index = False)
+    print('h')
+    #df_monitoring_experiment_2019.to_csv(r'S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.csv', index = False)
 
 #### create shapefile of the fields in the monitoring experiment
 gdf_monitoring_experiment_2019 = gpd.GeoDataFrame(df_monitoring_experiment_2019, geometry='geometry')
 gdf_monitoring_experiment_2019.crs = "EPSG: 4326"
-gdf_monitoring_experiment_2019.to_file(r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp", driver = 'ESRI Shapefile')
+#gdf_monitoring_experiment_2019.to_file(r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp", driver = 'ESRI Shapefile')

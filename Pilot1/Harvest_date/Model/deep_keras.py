@@ -12,11 +12,12 @@ from tensorflow.keras.models import load_model
 import numpy as np
 import os
 import glob
-Test_nr = r'Test4'
+Test_nr = r'Test12'
 if not os.path.exists(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\{}'.format(Test_nr)): os.makedirs(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\{}'.format(Test_nr))
-os.chdir(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\{}'.format(Test_nr))
+output_dir = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\{}'.format(Test_nr)
+os.chdir(output_dir)
 dir_data = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper'
-iterations = 100
+iterations = 30
 df_scores = []
 fields_wrong_classif = []
 fields_good_classif = []
@@ -34,16 +35,20 @@ if run_model:
         weight_train=np.ones(y_train.shape)
         weight_train[y_train==1]=10
 
-        x_test = df_validation.iloc[0:df_validation.shape[0],1:df_validation.shape[1]-1]
-        y_test = pd.DataFrame(df_validation.iloc[0:df_validation.shape[0],df_validation.shape[1]-1])
-        weight_test=np.ones(y_test.shape)
-        weight_test[y_test==1]=10
-        if p == 32:
-            print('h')
+        x_val = df_validation.iloc[0:df_validation.shape[0],1:df_validation.shape[1]-1]
+        y_val = pd.DataFrame(df_validation.iloc[0:df_validation.shape[0],df_validation.shape[1]-1])
+        weight_val=np.ones(y_val.shape)
+        weight_val[y_val==1]=10
+
+        df_test = pd.read_csv(glob.glob(os.path.join(dir_data, 'test', '{}'.format(Test_nr), 'df_test_*.csv'))[0])
+        x_test = df_test.iloc[0:df_test.shape[0],1:df_test.shape[1]-1]
+        y_test = pd.DataFrame(df_test.iloc[0:df_test.shape[0],df_test.shape[1]-1])
+        weight_test = np.ones(y_test.shape)
+        weight_test[y_test == 1] = 10
 
         #getting rid of nan values in coherence data
         x_train=x_train.fillna(method='ffill')
-        x_test=x_test.fillna(method='ffill')
+        x_val=x_val.fillna(method='ffill')
         #np.sum(np.isnan(x_train))
 
         #### building the model
@@ -59,16 +64,16 @@ if run_model:
         ### compiling the model
 
         model.compile(loss='binary_crossentropy', # way to calculate difference between predicted and observed. Binary crossenentropy useful when training binary classifier
-                      optimizer=keras.optimizers.Adam(lr=0.001), #optimize defines the learning rate (adam is a good optimizer) #lr: learning rate
+                      optimizer=keras.optimizers.Adam(lr= 0.0005), #optimize defines the learning rate (adam is a good optimizer) #lr: learning rate   #0.001 : original
                       metrics=['accuracy'])
 
         logger = CSVLogger('fit_update1.0_iteration{}.log'.format(str(p)), separator=',', append=False)
-        early_stopping=EarlyStopping(monitor='val_loss', min_delta=0.01, patience=3, verbose=1, mode='auto', baseline=None, restore_best_weights=False) # early stopping will stop model before epoch reached if the model stops improving. Patience after how many epochs with no improvement stop with running
+        early_stopping=EarlyStopping(monitor='val_loss', min_delta=0.01, patience= 10, verbose=1, mode='auto', baseline=None, restore_best_weights=False) # early stopping will stop model before epoch reached if the model stops improving. Patience after how many epochs with no improvement stop with running
         checkpoint=ModelCheckpoint('model_update1.0_iteration{}.h5'.format(str(p)), monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', save_freq = 'epoch') #Save the weight of the model so that they can be used later
 
         model.fit(x_train, y_train,sample_weight=weight_train.squeeze(), # fit function is used to train the model
-                  epochs=100, # the number of cycles the model goes through the data
-                  batch_size=16, validation_data=(x_test,y_test,weight_test.squeeze()),callbacks=[logger,early_stopping,checkpoint])
+                  epochs=200, # the number of cycles the model goes through the data #100
+                  batch_size=32, validation_data=(x_val,y_val,weight_val.squeeze()),callbacks=[logger,early_stopping,checkpoint]) # batch size was  16
 
 
         logdata=pd.read_csv('fit_update1.0_iteration{}.log'.format(str(p)))
@@ -85,20 +90,50 @@ if run_model:
 
         predictions = loaded_model.predict(x_test)
         th=0.5
-        harvest_predict_confid_med = np.nanmedian(predictions[np.where(weight_test[y_test == 1])])
-        harvest_predict_confid_std = np.std(predictions[np.where(weight_test[y_test == 1])])
-        df_scores.append(pd.concat([pd.DataFrame([score[0]], index=['iteration_{}'.format(str(p))], columns=(['loss'])),pd.DataFrame([score[1]], index=['iteration_{}'.format(str(p))],
-                                             columns=(['accuracy'])),
-                                    pd.DataFrame([harvest_predict_confid_med], index=['iteration_{}'.format(str(p))], columns=(['Median_confid_harvest'])),
-                                    pd.DataFrame([harvest_predict_confid_std], index=['iteration_{}'.format(str(p))], columns=(['STDV_confid_harvest']))], axis=1))
+        harvest_predict_confid_mean= np.nanmean(predictions[np.where(y_test == 1)])
+        harvest_predict_confid_med = np.nanmedian(predictions[np.where(y_test == 1)])
 
-        predictions[predictions>=th]=1
-        predictions[predictions<th]=0
-        df_validation['predictions']=predictions
-        fields_wrong_classif.extend(df_validation[df_validation['y'] != df_validation['predictions']].ID_field.to_list())
-        fields_good_classif.extend(df_validation[df_validation['y'] == df_validation['predictions']].ID_field.to_list())
+        harvest_predict_confid_std = np.std(predictions[np.where(y_test == 1)])
+
+        ####### plotting of performance model
+        fig, (ax1) = plt.subplots(1, figsize=(15, 10))
+        plt.plot(logdata['epoch'], logdata['loss'], label = 'Training_loss', color = 'red')
+        plt.plot(logdata['epoch'], logdata['val_loss'], label = 'Validation_loss', color = 'blue')
+        ax1.set_ylabel('Loss')
+        ax1.set_xlabel('Epoch')
+        ax1.legend(loc = 'upper right')
+        ax1.set_title('Model Test_{}_no_early_stopping'.format(str(p)))
+        plt.tight_layout()
+        fig.savefig(os.path.join(output_dir,'Model_{}_iteration_{}_no_early_stopping.png'.format(str(Test_nr),str(p))))
+        plt.close()
+
+        df_test['predictions_prob']=predictions
+        predictions[predictions >= th] = 1
+        predictions[predictions < th] = 0
+        df_test['predictions'] = predictions
+        harvest_false_pos_confid_med = np.nanmedian(df_test.loc[((df_test['y'] == 0) & (df_test['predictions'] == 1))]['predictions_prob'].values)#### see how certain the model is when harvest is detected in a no-harvest period
+        harvest_false_pos_confid_mean = np.nanmean(df_test.loc[((df_test['y'] == 0) & (df_test['predictions'] == 1))]['predictions_prob'].values)  #### see how certain the model is when harvest is detected in a no-harvest period
+        harvest_false_pos_confid_std = np.nanstd(df_test.loc[((df_test['y'] == 0) & (df_test['predictions'] == 1))]['predictions_prob'].values)
+        df_scores.append(pd.concat([pd.DataFrame([score[0]], index=['iteration_{}'.format(str(p))], columns=(['loss'])),
+                                pd.DataFrame([score[1]], index=['iteration_{}'.format(str(p))],
+                                             columns=(['accuracy'])),
+                                pd.DataFrame([harvest_predict_confid_med], index=['iteration_{}'.format(str(p))],
+                                             columns=(['Median_confid_harvest'])),
+                                    pd.DataFrame([harvest_predict_confid_mean], index=['iteration_{}'.format(str(p))],
+                                                 columns=(['Mean_confid_harvest'])),
+                                pd.DataFrame([harvest_predict_confid_std], index=['iteration_{}'.format(str(p))],
+                                             columns=(['STDV_confid_harvest'])),
+                                    pd.DataFrame([harvest_false_pos_confid_med], index=['iteration_{}'.format(str(p))],
+                                                 columns=(['Median_confid_true_pos'])),
+                                    pd.DataFrame([harvest_false_pos_confid_mean], index=['iteration_{}'.format(str(p))],
+                                                 columns=(['Mean_confid_true_pos'])),
+                                    pd.DataFrame([harvest_false_pos_confid_std], index=['iteration_{}'.format(str(p))],
+                                                 columns=(['STDV_confid_true_pos']))
+                                    ], axis=1))
+        fields_wrong_classif.extend(df_test[df_test['y'] != df_test['predictions']].ID_field.to_list())
+        fields_good_classif.extend(df_test[df_test['y'] == df_test['predictions']].ID_field.to_list())
         if not os.path.exists(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\accuracy\{}'.format(Test_nr)): os.makedirs(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\accuracy\{}'.format(Test_nr))
-        df_validation.to_csv(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\accuracy\{}\df_observed_predict_update1.0_iteration{}.csv'.format(Test_nr,str(p)), index = False)
+        df_test.to_csv(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\accuracy\{}\df_observed_predict_update1.0_iteration{}.csv'.format(Test_nr,str(p)), index = False)
         #pdb.set_trace()
 
     df_scores = pd.concat(df_scores)

@@ -12,10 +12,10 @@ end = '{}-12-31'.format(str(year))
 idx = pd.date_range(start,end)
 ##### loading of df's
 df_harvest = pd.read_excel(r"S:\eshape\Pilot 1\data\WIG_data\{}_WIG_planting_harvest_dates_overview.xlsx".format(str(year)), sheet_name='{}_WIG_planting_harvest_dates'.format(str(year)))
-df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\{}_fAPAR_{}_WIG_planting_harvest_dates_allfields.csv".format(str(year),str(year)))
+df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\{}_fAPAR_{}_WIG_planting_harvest_dates_allfields.csv".format(str(year),str(year)))
 ids = list(df_fAPAR.columns)
 ids.remove('Date')
-df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_coherence_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year),str(year),ro_select))
+df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_coherence_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year),str(year),ro_select))
 coh_vv_ids = np.arange(0,len(ids),1)
 coh_vh_ids = np.arange(0.1,len(ids),1)
 df_coherence = df_coherence.rename(columns = {'polygon':'Date'})
@@ -25,9 +25,9 @@ df_coherence = df_coherence.drop(columns = ['Date'])
 S1_vv_ids = np.arange(1,len(ids)*2-1+0.001,2, dtype = int)
 S1_vh_ids = np.arange(0,len(ids)*2-1+0.001,2, dtype = int)
 try:
-    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_Ascending_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year),str(year),ro_select))
+    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_Ascending_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year),str(year),ro_select))
 except:
-    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_Descending_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year),str(year),ro_select))
+    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_Descending_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year),str(year),ro_select))
 
 df_S1_ratio.index = pd.to_datetime(df_S1_ratio['Date'])
 df_S1_ratio = df_S1_ratio.drop(columns=['Date'])
@@ -85,9 +85,9 @@ for p in range(len(ids)):
         ax3.axvline(df_harvest_date[0], color='red', label='Harvest')
         ax3.legend(loc='upper left')
         plt.tight_layout()
-        if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_fAPAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(ids[p]),ro_select))) or overwrite:
-            if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)))): os.makedirs(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type))))
-            fig.savefig(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_fAPAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(ids[p]),ro_select)))
+        if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_fAPAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(ids[p]),ro_select))) or overwrite:
+            if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)))): os.makedirs(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type))))
+            fig.savefig(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_fAPAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(ids[p]),ro_select)))
 
             plt.close()
     else:

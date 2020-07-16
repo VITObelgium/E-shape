@@ -4,21 +4,21 @@ import numpy as np
 import geopandas as gpd
 import os
 import glob
-ro_select = r'ro110'
+ro_select = r'ro161'
 year = 2019
 start = '{}-01-01'.format(str(year))
 end = '{}-12-31'.format(str(year))
 idx = pd.date_range(start,end)
-id_dataset = r'WIG_planting_harvest_dates' #TAP_Monitoring_fields
-Cropsar_data = r'S:\eshape\Pilot 1\results\S1_S2_data\CropSAR'
+id_dataset = r'TAP_Monitoring_fields'
+Cropsar_data = r'S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data\CropSAR'
 idx = pd.date_range('{}-01-01'.format(str(year)),'{}-12-31'.format(str(year)))
 ##### loading of df's
-# df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\CropSAR\{}_fAPAR_{}_Flax_fields_mowing_dates_allfields.csv".format(str(year),str(year)))
+# df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data\CropSAR\{}_fAPAR_{}_Flax_fields_mowing_dates_allfields.csv".format(str(year),str(year)))
 # df_fAPAR = df_fAPAR.rename(columns = {'Unnamed: 0':'Date'})
 # ids = list(df_fAPAR.columns)
 #ids.remove('Date')
 # ids = ids[1:]
-# df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_coherence_Flax_fields_{}_mowing_dates_{}.csv".format(str(year),ro_select))
+# df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_coherence_Flax_fields_{}_mowing_dates_{}.csv".format(str(year),ro_select))
 # coh_vv_ids = np.arange(0,len(ids),1)
 # coh_vh_ids = np.arange(0.1,len(ids),1)
 # df_coherence = df_coherence.rename(columns = {'polygon':'Date'})
@@ -28,15 +28,15 @@ idx = pd.date_range('{}-01-01'.format(str(year)),'{}-12-31'.format(str(year)))
 # S1_vv_ids = np.arange(1,len(ids)*2-1+0.001,2, dtype = int)
 # S1_vh_ids = np.arange(0,len(ids)*2-1+0.001,2, dtype = int)
 try:
-    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\S1_Ascending_{}_{}_{}_{}.csv".format(str(year),str(year),id_dataset,ro_select))
+    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data\S1_Ascending_{}_{}_{}_{}.csv".format(str(year),str(year),id_dataset,ro_select))
 except:
-    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\S1_Descending_{}_{}_{}_{}.csv".format(str(year),str(year),id_dataset,ro_select))
+    df_S1_ratio = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data\S1_Descending_{}_{}_{}_{}.csv".format(str(year),str(year),id_dataset,ro_select))
 
 df_S1_ratio.index = pd.to_datetime(df_S1_ratio['Date'])
 df_S1_ratio = df_S1_ratio.drop(columns=['Date'])
 overwrite = True
-#df_harvest = pd.read_csv(r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.csv")
-df_harvest = gpd.read_file(r"S:\eshape\Pilot 1\results\Training_Val_selection\2019_WIG_fields_selected.shp")
+df_harvest = pd.read_csv(r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.csv")
+ #df_harvest = gpd.read_file(r"S:\eshape\Pilot 1\results\Harvest_date\Training_Val_selection\2019_WIG_fields_selected.shp")
 ids =df_harvest.id.to_list()
 
 ##### CROPSAR data extraction
@@ -87,9 +87,9 @@ for id in ids:
     ax2.set_xlabel('Date')
     ax2.legend(loc='upper left')
     plt.tight_layout()
-    if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_{}_fAPAR_cropSAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(id),id_dataset,ro_select))) or overwrite:
-        if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)))): os.makedirs(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type))))
-        fig.savefig(os.path.join(r'S:\eshape\Pilot 1\results\plots\training_val_selection\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_{}_fAPAR_cropSAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(id),id_dataset,ro_select)))
+    if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_{}_fAPAR_cropSAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(id),id_dataset,ro_select))) or overwrite:
+        if not os.path.exists(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\{}\{}\{}'.format(ro_select,str(year),str(crop_type)))): os.makedirs(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\{}\{}\{}'.format(ro_select,str(year),str(crop_type))))
+        fig.savefig(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\plots\{}\{}\{}'.format(ro_select,str(year),str(crop_type)),'{}_{}_{}_fAPAR_cropSAR_Coherence_S1_VH_VV_{}.png'.format(str(year),str(id),id_dataset,ro_select)))
 
         plt.close()
 

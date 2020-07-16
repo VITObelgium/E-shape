@@ -68,7 +68,7 @@ end_day = end[8:10]
 #connection_coherence = openeo.connect("http://openeo-dev.vgt.vito.be/openeo/0.4.0")
 connection = openeo.connect("http://openeo.vgt.vito.be/openeo/0.4.0")
 connection.authenticate_basic("bontek","bontek123")
-outdir = r'S:\eshape\Pilot 1\results\tmp'
+outdir = r'S:\eshape\Pilot 1\results\Harvest_date\tmp'
 #for index,field in WIG_fields.iterrows():
 #
 #fAPAR
@@ -106,7 +106,7 @@ outdir = r'S:\eshape\Pilot 1\results\tmp'
 #         df_coherence.to_csv("{}.csv".format(os.path.join(outdir,'tmp',start_year+'_'+'S1_Coherence'+'_TAP_Monitoring_fields_'+field.id)))
 
 #with open("{}.json".format(os.path.join(outdir, 'S1_coherence_'+'Flax_fields_' + start_year+'_'+os.path.split(shp_dir)[-1][0:-4])), 'r') as c:
-# with open(r"S:\eshape\Pilot 1\results\S1_coherence_Flax_fields_2018_vlas_2018_wgs_all.json") as c:
+# with open(r"S:\eshape\Pilot 1\results\Harvest_date\S1_coherence_Flax_fields_2018_vlas_2018_wgs_all.json") as c:
 #     ts_dict_c = json.load(c)
 #     t_88 = pd.date_range("2018-01-05","2018-12-31",freq="6D",tz = 'utc').to_pydatetime()
 #     t_88 = t_88.tolist()

@@ -9,8 +9,8 @@ import  glob
 year = 2018
 df_harvest = pd.read_excel(r"S:\eshape\Pilot 1\data\WIG_data\{}_WIG_planting_harvest_dates_overview.xlsx".format(str(year)), sheet_name='{}_WIG_planting_harvest_dates'.format(str(year)))
 ros = ['ro88','ro110','ro161']
-VI_data = r'S:\eshape\Pilot 1\results\tmp'
-IDs_harvest_date = r'S:\eshape\Pilot 1\results\plots'
+VI_data = r'S:\eshape\Pilot 1\results\Harvest_date\tmp'
+IDs_harvest_date = r'S:\eshape\Pilot 1\results\Harvest_date\plots'
 ids_fapar = []
 counter = 0
 
@@ -28,7 +28,7 @@ for ro in ros:
     counter +=1
 ids_fapar = [item for sublist in ids_fapar for item in sublist] ### all the ids that can  be used to built a training/validation dataset
 ids_fapar = list(set(ids_fapar))
-df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\{}_fAPAR_{}_WIG_planting_harvest_dates_allfields.csv".format(str(year),str(year)))
+df_fAPAR = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data\{}_fAPAR_{}_WIG_planting_harvest_dates_allfields.csv".format(str(year),str(year)))
 ids_fields = list(df_fAPAR.columns) ### all field IDS (reference) with some data on fAPAR for tht year
 ids_fields.remove('Date')
 vh_ids = np.arange(0.1,len(ids_fields),1) # the name of the IDS in the coherence dataframe based on the amount of reference fields in the fAPAR dataframe
@@ -40,7 +40,7 @@ ids_remove_no_coherence = []
 for ro in ros:
     print('\n extracting data for RO: {}'.format(ro))
     counter_ids_loop = 0
-    df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\S1_S2_data\S1_coherence_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year), str(year), ro))
+    df_coherence = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data\S1_coherence_{}_{}_WIG_planting_harvest_dates_{}.csv".format(str(year), str(year), ro))
     df_coherence = df_coherence.rename(columns={'polygon': 'Date'})
     df_coherence = df_coherence.iloc[2:]
     dates_coherence = df_coherence.Date.to_list()
