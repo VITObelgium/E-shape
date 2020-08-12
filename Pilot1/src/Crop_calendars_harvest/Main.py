@@ -22,6 +22,8 @@ from Pilot1.src.Crop_calendars_harvest.Main_functions import concat_df_from_Open
 from Pilot1.src.Crop_calendars_harvest.Main_functions import fAPAR_CropSAR_concat_OpenEO
 from Pilot1.src.Crop_calendars_harvest.Main_functions import fAPAR_CropSAR_concat_API
 from Pilot1.src.Crop_calendars_harvest.Main_functions import S1_VHVV_ratio_concat
+from Pilot1.src.Crop_calendars_harvest.Main_functions import moving_window_metrics_extraction
+from Pilot1.src.Crop_calendars_harvest.Main_functions import combine_cropcalendar_data
 from Pilot1.src.Crop_calendars_harvest.Main_functions import coherence_concat
 from Pilot1.src.Crop_calendars_harvest.Main_functions import Plot_time_series_metrics_crop_calendar
 from Pilot1.src.Crop_calendars_harvest.Main_functions import apply_NN_model
@@ -29,8 +31,65 @@ from Pilot1.src.Crop_calendars_harvest.Main_functions import Plot_time_series_me
 
 
 
-####### PART 1: OPENEO EXTRACTION OF THE REQUIRED METRICS + PRE-PROCESSING OF THE INPUT DATA SO THE MODEL CAN USE IT
+####### OPENEO EXTRACTION OF THE REQUIRED METRICS + PRE-PROCESSING OF THE INPUT DATA SO THE MODEL CAN USE IT AND PLOT THE FINAL OUTPUT
+# constant parameters
+VH_VV_range = [-13,-3.5] #-30, -8 => old wrong dB calculation
+fAPAR_range =  [0,1]
+metrics = [r'VHVV', 'CropSAR'] #, 'coherence'
+crop_calendar_events = ['Harvest_da']
+Basefolder = r'S:\eshape\Pilot 1\results\{}\plots'.format(crop_calendar_events[0])
+trained_model_dir = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10'
+outdir_prob_plotting = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10\6_daily_window_data'
+iterations = 30
+#### dictionaries containing some info on the used datasets to allow crop calendar generation
+datasets_dict = {
+                 '2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\35TLF_2018_parcel_ids_greece.shp",
+                 '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\32TQQ_2017_CAC_sbe.shp",
+                 '2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\32TQQ_2018_CAC_sbe.shp",
+                 '2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\32TQQ_2018_CAC_soy.shp",
+                 '2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\32TQQ_2019_CAC_sbe.shp",
+                 '2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\32TQQ_2019_CAC_soy.shp"}
+# '2018_Flax': r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all.shp",
+#                  '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates.shp",
+#                  '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_fields_planting_dates.shp",
 
+#datasets_dict = {'2019_TAP': r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp"}
+country_dataset_dict = {
+                 '2018_Greece': r"Greece",
+                 '2017_CAC_sbe': r"Italy",
+                 '2018_CAC_sbe': r"Italy",
+                 '2018_CAC_soy': r"Italy",
+                 '2019_CAC_sbe': r"Italy",
+                 '2019_CAC_soy': r"Italy"}
+# '2018_Flax': r"Belgium",
+#                  '2018_WIG': r"Belgium",
+#                  '2019_WIG': r"Belgium",
+
+#country_dataset_dict = {'2019_TAP': r'Belgium'}
+ROs_dataset_dict = {
+                 '2018_Greece': ['ro29','ro131', 'ro109'],
+                 '2017_CAC_sbe': ['ro117','ro95'],
+                 '2018_CAC_sbe': ['ro44','ro117','ro95'],
+                 '2018_CAC_soy': ['ro117','ro95'],
+                 '2019_CAC_sbe': ['ro44','ro117','ro95','ro168'],
+                 '2019_CAC_soy': ['ro44','ro117','ro95', 'ro168']}
+# '2018_Flax':['ro110','ro161'],
+#                  '2018_WIG': ['ro110','ro161'],
+#                  '2019_WIG': ['ro110','ro161'],
+
+#ROs_dataset_dict = {'2019_TAP': ['ro110', 'ro161']}
+dict_cropcalendars_data_locations = {
+                           '2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\cropCalendars2018Komotini_cropcalendars.xlsx",
+                           '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\CAC_2017_sbe_cropcalendars.xlsx",
+                           '2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\CAC_2018_sbe_cropcalendars.xlsx",
+                           '2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\CAC_2018_soy_cropcalendars.xlsx",
+                           '2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\CAC_2019_sbe_cropcalendars.xlsx",
+                           '2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\CAC_2019_soy_cropcalendars.xlsx"}
+# '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_planting_harvest_dates_overview_reduc.xlsx",
+#                            '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates_overview_reduc.xlsx",
+#                            '2018_Flax' : r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all_overview.xlsx",
+
+#dict_cropcalendars_data_locations = {'2019_TAP': r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.xlsx"}
 # A) OPENEO data extraction
 unique_ids_fields= []
 df_metrics = {}
@@ -58,7 +117,7 @@ connection.authenticate_basic("bontek","bontek123")
 #outdir = r'S:\eshape\Pilot 1\results\Planting_date\S1_S2_data\CropSAR\Test_cropsar.zip'
 #df_cropsar = OpenEO_extraction_cropSAR(start, end,outdir,shp_dir)
 
-### post-processing of df (plotting)
+# B) post-processing of df (plotting)
 
 #### concatenate the cropsar df if they were not processed at once
 dict_cropsar_OpenEO = dict()
@@ -72,58 +131,47 @@ dict_cropsar_OpenEO.update({'2019_WIG':concat_df_from_Openeo(dict_directory_spli
 dict_cropsar_OpenEO.update({'2018_WIG' : concat_df_from_Openeo(dict_directory_cropsar_WIG_2018)})
 dict_cropsar_OpenEO.update({'2018_Flax': concat_df_from_Openeo(dict_directory_cropsar_flax_2018)})
 
-##### add to the df's the right field id to each column
-datasets_dict = {'2018_Flax': r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all.shp",
-                 '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates.shp",
-                 '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_fields_planting_dates.shp"}
-
 #### concat the cropSAR curves if they were returned from OpenEO
-dict_cropsar_OpenEO = fAPAR_CropSAR_concat_OpenEO(datasets_dict,dict_cropsar_OpenEO)
+#dict_cropsar_OpenEO = fAPAR_CropSAR_concat_OpenEO(datasets_dict,dict_cropsar_OpenEO)
 ### concat the CropSAR curves if they were returned from the CropSAR webservice
-CropSAR_dir = r'S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data\CropSAR'
-dict_cropsar_API = fAPAR_CropSAR_concat_API(datasets_dict,CropSAR_dir)
+CropSAR_dir = r'S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data'
+dict_cropsar_API = fAPAR_CropSAR_concat_API(datasets_dict,CropSAR_dir, country_dataset_dict)
 
 dir_data_metrics = r'S:\eshape\Pilot 1\results\Harvest_date\S1_S2_data'
-ro_s = ['ro110','ro161']
-dict_VHVV = S1_VHVV_ratio_concat(dir_data_metrics, datasets_dict,ro_s)
-datasets_dict = {'2018_Flax': r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all.shp",
-                 '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates.shp",
-                 '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_planting_harvest_dates.shp"} # for WIG_2019 all the coherence data for the fields was extracted and not only for the ones wiht planting dates like with cropsar
-dict_coherence = coherence_concat(dir_data_metrics, datasets_dict, ro_s)
+dict_VHVV = S1_VHVV_ratio_concat(dir_data_metrics, datasets_dict,ROs_dataset_dict)
+
+### in case want to concatenate coherence data
+# datasets_dict = {'2018_Flax': r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all.shp",
+#                  '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates.shp",
+#                  '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_planting_harvest_dates.shp"} # for WIG_2019 all the coherence data for the fields was extracted and not only for the ones wiht planting dates like with cropsar
+#dict_coherence = coherence_concat(dir_data_metrics, datasets_dict, ro_s)
+
+
+# C) Plotting of the fields metrics together with its reference data on crop events
 
 #### plot the metrics of the different fields for the different orbits of interest
-dict_cropcalendars_data = {'2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_planting_harvest_dates_overview_reduc.xlsx",
-                           '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates_overview_reduc.xlsx",
-                           '2018_Flax' : r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all_overview.xlsx"}
 
-metrics = [r'VHVV', 'CropSAR', 'coherence']
-crop_calendar_events = ['Planting_date']
-Basefolder = r'S:\eshape\Pilot 1\results\{}\plots'.format(crop_calendar_events[0])
 #Plot_time_series_metrics_crop_calendar(datasets_dict,ro_s, metrics, dict_cropcalendars_data, crop_calendar_events, Basefolder, dict_cropsar_API, dict_VHVV, dict_coherence)
 
-##### function that will make the dataframes ready to use in the NN model
+# D) Generate a DF containing the metrics per window so that it can be used to run in the NN model
 
 
+#### make a 6-daily moving window for the extracted datasets and for the metrics of interest
 
+## first make a dictionary containing the df's with the meta data on the crop events
+dict_cropcalendars_data = combine_cropcalendar_data(datasets_dict, dict_cropcalendars_data_locations, crop_calendar_events)
+dict_moving_window_extracts = moving_window_metrics_extraction(datasets_dict, ROs_dataset_dict, dict_VHVV, dict_cropsar_API, metrics, VH_VV_range, fAPAR_range, dict_cropcalendars_data, crop_calendar_events)
+
+
+# E) Plotting of the NN outcome (probabilities) together with the time series of the metrics of interest
 
 ##### function to plot the crop calendar probabilities according the NN model for the entire time series and together with the metrics
-### use the TAP fields:
-TAP_dict = {'2019_TAP': r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp"}
-dict_validation_data = {'2019_TAP': pd.read_csv(r"S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\validation\6_daily_window_data\df_harvest_model_6daily_TAP_only_ro110_ro161_30_daily_window.csv")}
-dict_cropsar_API_TAP = fAPAR_CropSAR_concat_API(TAP_dict,CropSAR_dir)
-dict_VHVV_TAP = S1_VHVV_ratio_concat(dir_data_metrics, TAP_dict,ro_s)
-trained_model_dir = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10'
-outdir = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10\6_daily_window_data'
-metrics_TAP = [r'VHVV_ro110','VHVV_ro161', 'CropSAR']
-
-#### function to use the trained model to  get the probabilities
-iterations = 30
-crop_calendar_events_TAP = ['harvest_da']
-dict_cropcalendars_data_TAP = {'2019_TAP': r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.csv"}
+### use the TAP  and fields outside Belgium:
+# #### function to use the trained model to  get the probabilities
 for p in range(iterations):
     Basefolder = os.path.join(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10\6_daily_window_data','iteration_{}'.format(str(p)))
-    dict_model_predict = apply_NN_model(dict_validation_data, trained_model_dir, outdir, p)
-    Plot_time_series_metrics_crop_calendar_probability(dict_validation_data,ro_s, metrics_TAP, dict_cropcalendars_data_TAP, crop_calendar_events_TAP, Basefolder, dict_model_predict, dict_cropsar_API_TAP, dict_VHVV_TAP)
+    dict_model_predict = apply_NN_model(dict_moving_window_extracts, trained_model_dir, p)
+    Plot_time_series_metrics_crop_calendar_probability(ROs_dataset_dict, metrics, dict_cropcalendars_data,crop_calendar_events, Basefolder, country_dataset_dict, dict_model_predict, dict_cropsar_API, dict_VHVV)
 
 
 
