@@ -235,7 +235,7 @@ class Cropcalendars():
 
 
             # demo datacube of VH_VV and fAPAR time series
-            with open(r"C:\Users\bontek\git\e-shape\Pilot1\src\Test\EX_files\TAP_fields_datacube_metrics_test.json",'r') as ts_file:
+            with open(r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\TAP_fields_datacube_metrics_test.json",'r') as ts_file:
                 ts_dict = json.load(ts_file)
                 df_metrics = timeseries_json_to_pandas(ts_dict)
                 df_metrics.index  = pd.to_datetime(df_metrics.index)
