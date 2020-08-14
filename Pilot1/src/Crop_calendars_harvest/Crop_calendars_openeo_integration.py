@@ -1,16 +1,14 @@
 import numpy as np
 import openeo
-import geopandas as gpd
 import pandas as pd
 import scipy.signal
 import shapely
 from openeo.rest.conversions import timeseries_json_to_pandas
-import uuid
 from datetime import timedelta
 from tensorflow.keras.models import load_model
 import geojson
-from pathlib import Path
 import uuid
+import json
 
 # General approach:
 #
@@ -181,14 +179,14 @@ class Cropcalendars():
                     predictions = loaded_model.predict(x_test)
                     predictions[predictions >= thr_detection] = 1
                     predictions[predictions < thr_detection] = 0
-                    df['crop_calendar_detection_{}'.format(crop_calendar_event)] = predictions
+                    df['NN_model_detection_{}'.format(crop_calendar_event)] = predictions
                     return df
 
                  # function to create the crop calendar information for the fields
                 def create_crop_calendars_fields(df, ids_field):
                     df_crop_calendars = []
                     for id in ids_field:  ### here can insert a loop for the different crop calendar events for that field
-                        crop_calendar_date = pd.to_datetime(df[(df['crop_calendar_detection_Harvest'] == 1) & (
+                        crop_calendar_date = pd.to_datetime(df[(df['NN_model_detection_Harvest'] == 1) & (
                                 df.index == id)].prediction_date_window).mean()  # take the average of the dates at which a crop event occured according to the model #TODO adapt this method based on analysis results
                         if not np.isnan(crop_calendar_date.day): ## check if no nan date for the event
                             crop_calendar_date = crop_calendar_date.strftime('%Y-%m-%d') # convert to string format
@@ -202,7 +200,7 @@ class Cropcalendars():
                 NN_model_dir = self.path_harvest_model
                 amount_metrics_model = len(metrics_crop_event) * window_values
 
-                #### ADRESS THE FUNCTION TO DETERMINE THE HARVEST DATE FOR THE FIELDS
+                #### PREPARE THE DATAFRAMES (REFORMATTING AND RESCALING) IN THE RIGHT FORMAT TO ALLOW THE USE OF THE TRAINED NN
                 ts_df_prepro = rename_df_columns(ts_df, unique_ids_fields, self.metrics_order)
 
                 ts_df_prepro = VHVV_calc_rescale(ts_df_prepro, unique_ids_fields, self.VH_VV_range_normalization)
@@ -211,7 +209,7 @@ class Cropcalendars():
                 ts_df_prepro = rescale_metrics(ts_df_prepro, self.fAPAR_rescale_Openeo, self.fAPAR_range_normalization, unique_ids_fields, 'fAPAR')
 
 
-                ### for now just extract the ro 110 and 161
+                ### for now just extract the ro 110 and 161 for S1_VV and S1_VH
                 #TODO In the final script the RO should be dynamically chosen based on the overlap of descending and ascending orbits of the parcel
                 t_110 = pd.date_range("2019-01-02", "2019-12-31", freq="6D",
                                       tz='utc').to_pydatetime()  # the dates at which this specific orbit occur in BE
@@ -220,28 +218,28 @@ class Cropcalendars():
                 ts_orbits = [t_110, t_161]
                 ro_s = ['ro110', 'ro161']  # the orbits of consideration
 
+                ### create windows in the time series to extract the metrics and store each window in a seperate row in the dataframe
                 ts_df_input_NN = prepare_df_NN_model(ts_df_prepro, ts_orbits, window_values, unique_ids_fields, ro_s, metrics_crop_event)
 
+
+                ### apply the trained NN model on the window extracts
                 df_NN_prediction = apply_NN_model_crop_calendars(ts_df_input_NN, amount_metrics_model, thr_detection, crop_calendar_event,NN_model_dir)
 
                 df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction, unique_ids_fields)
 
-                #udf_data.set_structured_data_list([df_crop_event.to_dict()])
+                #udf_data.set_structured_data_list([df_crop_calendars_result.to_dict()])
                 return df_crop_calendars_result
-
-
 
             # cropcalendar_result = timeseries.process("run_udf",
             #                                          data = timeseries._pg, udf = udf, runtime = 'Python').execute_batch(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\crop_calendar_field_test.json")
 
-            #datacube_metrics = bands_ts.filter_temporal(start,end).polygonal_mean_timeseries(geo).execute_batch(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\TAP_fields_datacube_metrics_test.json")
-            #df_metrics = timeseries_json_to_pandas(datacube_metrics)
-            import json
-            with open(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\TAP_fields_datacube_metrics_test.json",'r') as ts_file:
+
+            # demo datacube of VH_VV and fAPAR time series
+            with open(r"C:\Users\bontek\git\e-shape\Pilot1\src\Test\EX_files\TAP_fields_datacube_metrics_test.json",'r') as ts_file:
                 ts_dict = json.load(ts_file)
                 df_metrics = timeseries_json_to_pandas(ts_dict)
                 df_metrics.index  = pd.to_datetime(df_metrics.index)
-
+            # use the UDF to determine the crop calendars for the fields in the geometrycollection
             crop_calendars = udf_cropcalendars(df_metrics, unique_ids_fields)
 
             #### FINALLY ASSIGN THE CROP CALENDAR EVENTS AS PROPERTIES TO THE GEOJSON FILE WITH THE FIELDS

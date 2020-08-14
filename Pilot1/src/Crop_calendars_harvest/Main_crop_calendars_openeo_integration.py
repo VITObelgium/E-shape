@@ -8,9 +8,9 @@ def main():
                               VH_VV_range_normalization= [-13, -3.5], fAPAR_range_normalization= [0,1], metrics_order = metrics_order)
 
     #### USER SPECIFIC PARARMETERS
-    gjson_path = r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\Field_test.geojson"
+    gjson_path = r"C:\Users\bontek\git\e-shape\Pilot1\src\Test\EX_files\Field_test.geojson"
     ## define the period (year) for extracting the time series data
-    year_of_interest = 2017
+    year_of_interest = 2019
     start = '{}-01-01'.format(str(year_of_interest))
     end = '{}-12-31'.format(str(year_of_interest))
 
