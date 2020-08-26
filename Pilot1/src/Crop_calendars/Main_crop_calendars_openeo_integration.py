@@ -1,4 +1,6 @@
-from Pilot1.src.Crop_calendars.Crop_calendars_openeo_integration import Cropcalendars
+from pathlib import Path
+
+from Crop_calendars.Crop_calendars_openeo_integration import Cropcalendars
 import json
 def main():
     ######## DEFAULT PARAMETERS ##########
@@ -8,7 +10,7 @@ def main():
                               VH_VV_range_normalization= [-13, -3.5], fAPAR_range_normalization= [0,1], metrics_order = metrics_order)
 
     #### USER SPECIFIC PARARMETERS
-    gjson_path = r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\Field_test.geojson"
+    gjson_path = Path("../../Tests/Cropcalendars/EX_files/Field_test.geojson")
     ## define the period (year) for extracting the time series data
     year_of_interest = 2019
     start = '{}-01-01'.format(str(year_of_interest))
