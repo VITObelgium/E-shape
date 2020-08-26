@@ -545,9 +545,240 @@ def moving_window_metrics_extraction(datasets_dict, ROs_dataset_dict, dict_VHVV,
             df_harvest_model_ro_combined.append(df_harvest_model)
         dict_moving_window_extracts.update({'moving_window_extracts_'+ dataset+ '_'+crop_calendar_events[0].lower(): pd.concat(df_harvest_model_ro_combined)})
     return dict_moving_window_extracts
+def RMSE_plotting_against_prob_threshold(dict_RMSE_dataset, dict_RO_s_datasets, crop_calendar_events, outdir, country_dataset_dict, harvest_window_index,p):
+    for dataset in dict_RMSE_dataset:
+        max_RMSE = []
+        min_RMSE = []
+        df_RMSE  = dict_RMSE_dataset.get(dataset)
+        Model_extract = df_RMSE.index.to_list()
+        thresholds = sorted(list(set([item.split('_')[-1] for item in Model_extract])))
+        thresholds = [round(float(item), 2) for item in thresholds]
 
+        df_model_extract = df_RMSE.loc[df_RMSE.index.isin(Model_extract)]
+        df_model_extract.sort_index(inplace=True)
+        try:
+            fig, (ax1) = plt.subplots(1, figsize=(15, 10))
+            colors = ['red', 'blue', 'green', 'purple','black']
+            counter = 0
+            for ro in dict_RO_s_datasets.get(dataset.rsplit('_', 2)[0]):
+                max_RMSE.append(df_model_extract['RMSE_{}'.format(ro)].values.max())
+                min_RMSE.append(df_model_extract['RMSE_{}'.format(ro)].values.min())
+                ax1.plot(thresholds, df_model_extract['RMSE_{}'.format(ro)], color='{}'.format(colors[counter]), label='{}_RMSE'.format(ro))
+                counter +=1
+            max_RMSE.append(df_model_extract.RMSE_ro_combined.values.max())
+            max_RMSE = max(max_RMSE)
+            min_RMSE.append(df_model_extract.RMSE_ro_combined.values.min())
+            min_RMSE = min(min_RMSE)
+            ax1.plot(thresholds, df_model_extract.RMSE_ro_combined, color='{}'.format(colors[counter]), linestyle='dashed', label='ro_combined')
+            ax1.set_xlabel(r'{}_prob_threshold'.format(crop_calendar_events[0].rsplit('_',1)[0]))
+            ax1.set_ylim([min_RMSE-1, max_RMSE+1])
+            ax1.set_ylabel(r'RMSE')
+            ax1.legend(loc='upper right')
+            if not os.path.exists(
+                os.path.join(outdir, '{}'.format(country_dataset_dict.get(dataset.rsplit('_', 2)[0])),'{}'.format(dataset.rsplit('_', 2)[0]), 'Window_bigger_thr_{}'.format(str(harvest_window_index+1)))): os.makedirs(
+                os.path.join(outdir, '{}'.format(country_dataset_dict.get(dataset.rsplit('_', 2)[0])),'{}'.format(dataset.rsplit('_', 2)[0]), 'Window_bigger_thr_{}'.format(str(harvest_window_index+1))))
+            if not os.path.exists(os.path.join(outdir, '{}'.format(country_dataset_dict.get(dataset.rsplit('_', 2)[0])),'{}'.format(dict_RO_s_datasets.get((dataset.rsplit('_', 2)[0]))), 'Window_bigger_thr_{}'.format(str(harvest_window_index+1)),
+                                     'Model_{}_RMSE_trend_asc_desc_thresholds_ro_combined.png'.format(str(p)))):
+                fig.savefig(os.path.join(outdir, '{}'.format(country_dataset_dict.get(dataset.rsplit('_', 2)[0])),'{}'.format(dataset.rsplit('_', 2)[0]), 'Window_bigger_thr_{}'.format(str(harvest_window_index+1)),
+                                     'Model_{}_RMSE_trend_asc_desc_thresholds_ro_combined.png'.format(str(p))))
+            plt.close()
+        except:
+            plt.close()
+            continue
 
+def validate_crop_calendar_event_date(dict_cropcalendars_data, dict_model_predict, thresholds_events_detection, window_days_event, position_thr_exceeds_index, crop_calendar_events, ROs_dataset_dict,p):
+    def RMSE(df, ro_s, p, thr, dataset):
+        fieldnames_orbit = list(set(df.ID_field_orbit.to_list()))
+        RMSE_output_df = []
+        Fields_no_harvest_detected = []
+        days_harvest_prediction_error = dict()
+        for orbit in ro_s.get(dataset.rsplit('_', 2)[0]):
+            field_names_orbit = [item for item in fieldnames_orbit if orbit in item]
+            df_orbit = df.loc[df.ID_field_orbit.isin(field_names_orbit)]
+            df_orbit_reduced = df_orbit.drop_duplicates(subset='ID_field_orbit').reset_index(
+                drop=True)  # keep only one row per field to limit data reduncy
+            print('{} FIELDS OF {} CAN BE USED TO CALCULATE THE RMSE FROM {}'.format(
+                str(df_orbit_reduced.dropna().shape[0]), orbit, str(df_orbit_reduced.shape[0])))
+            Fields_no_harvest_detected.append(df_orbit_reduced.shape[0] - df_orbit_reduced.dropna().shape[0])
+            df_orbit_reduced['DOY_harvest'] = pd.to_datetime(df_orbit_reduced.harvest_da.values).dayofyear
+            days_harvest_prediction_error.update(
+                {'{}'.format(orbit): (df_orbit_reduced.DOY_harvest - df_orbit_reduced.DOY_harvest_prediction)})
+            RMSE_harvest_date_prediction = np.sqrt(
+                ((df_orbit_reduced.DOY_harvest_prediction - df_orbit_reduced.DOY_harvest) ** 2).mean())
+            RMSE_output_df.append(RMSE_harvest_date_prediction)
 
+        # calculate the RMSE error for the combined orbit case
+        field_names_without_orbit = [item.rsplit('_', 1)[0] for item in df.ID_field_orbit.to_list()]
+        df['ID_field_orbit_comb'] = field_names_without_orbit
+        df = df.groupby(['ID_field_orbit_comb']).apply(combine_orbits_predicting_event)
+        df.drop_duplicates(subset=['ID_field_orbit_comb'], inplace=True)
+        df.reset_index(drop=True, inplace=True)
+        days_harvest_prediction_error.update({'{}'.format('ro_combined'): (df.DOY_harvest_error)})
+        RMSE_harvest_date_prediction = np.sqrt(((df.DOY_harvest_prediction - df.DOY_harvest) ** 2).mean())
+        RMSE_output_df.append(RMSE_harvest_date_prediction)
+        Fields_no_harvest_detected.append(df_orbit_reduced.shape[0] - df_orbit_reduced.dropna().shape[0])
+        if len(ro_s.get(dataset.rsplit('_', 2)[0])) == 2:
+            RMSE_df = pd.DataFrame(np.array(RMSE_output_df)[np.newaxis],
+                                   columns=(['RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]),
+                                             'RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[1]),
+                                             'RMSE_ro_combined']),
+                                   index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+            Fields_no_harvest_detected = pd.DataFrame(np.array(Fields_no_harvest_detected)[np.newaxis], columns=(
+                ['Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]),
+                 'Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[1]),
+                 'Fields_undetected_ro_combined']),
+                                                      index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+        if len(ro_s.get(dataset.rsplit('_', 2)[0])) == 1:
+            RMSE_df = pd.DataFrame(np.array(RMSE_output_df)[np.newaxis],
+                                   columns=(
+                                   ['RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]), 'RMSE_ro_combined']),
+                                   index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+            Fields_no_harvest_detected = pd.DataFrame(np.array(Fields_no_harvest_detected)[np.newaxis], columns=(
+                ['Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]),
+                 'Fields_undetected_ro_combined']),
+                                                      index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+        if len(ro_s.get(dataset.rsplit('_', 2)[0])) == 3:
+            RMSE_df = pd.DataFrame(np.array(RMSE_output_df)[np.newaxis],
+                                   columns=(['RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]),
+                                             'RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[1]),
+                                             'RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[2]),
+                                             'RMSE_ro_combined']),
+                                   index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+            Fields_no_harvest_detected = pd.DataFrame(np.array(Fields_no_harvest_detected)[np.newaxis], columns=(
+                ['Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]),
+                 'Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[1]),
+                 'Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[2]),
+                 'Fields_undetected_ro_combined']),
+                                                      index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+        if len(ro_s.get(dataset.rsplit('_', 2)[0])) == 4:
+            RMSE_df = pd.DataFrame(np.array(RMSE_output_df)[np.newaxis],
+                                   columns=(['RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]),
+                                             'RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[1]),
+                                             'RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[2]),
+                                             'RMSE_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[3]),
+                                             'RMSE_ro_combined']),
+                                   index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+            Fields_no_harvest_detected = pd.DataFrame(np.array(Fields_no_harvest_detected)[np.newaxis], columns=(
+                ['Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[0]),
+                 'Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[1]),
+                 'Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[2]),
+                 'Fields_undetected_{}'.format(ro_s.get(dataset.rsplit('_', 2)[0])[3]),
+                 'Fields_undetected_ro_combined']),
+                                                      index=['Model_{}_thr_{}'.format(str(p), str(thr))])
+
+        return RMSE_df, days_harvest_prediction_error, Fields_no_harvest_detected
+
+    def combine_orbits_predicting_event(df):
+        df_reduc = df.drop_duplicates(
+            subset=['ID_field_orbit'])  # only keep the unique rows with a different ro the id in the iteration
+        if df_reduc.shape[0] >= 2:
+            mean_DOY_harvest_pred_orbits = df_reduc.DOY_harvest_prediction.mean()
+            df_reduc['DOY_harvest'] = pd.to_datetime(df_reduc.harvest_da.values).dayofyear
+            harvest_prediction_error = (df_reduc.DOY_harvest.mean()) - mean_DOY_harvest_pred_orbits
+            df['DOY_harvest_prediction'] = [mean_DOY_harvest_pred_orbits] * df.shape[0]
+            df['DOY_harvest_error'] = [harvest_prediction_error] * df.shape[0]
+            df['DOY_harvest'] = pd.to_datetime(df.harvest_da.values).dayofyear
+
+        return df
+
+    def predict_event(df, position_thr_exceeds_index, thr):
+        # apply the specified threshold for telling if in the window the event is detected or not
+        predictions = df['predictions_prob'].to_numpy()
+        predictions[predictions >= thr] = 1
+        predictions[predictions < thr] = 0
+        df['predictions'] = predictions
+
+        N_times_event_detected = len(
+            np.where(df.predictions == 1)[0])  ### amount of window that detected the event according to the model
+        df['prediction_date_window'] = df['prediction_date_window'].values.astype('datetime64[D]')
+        df['harvest_da'] = pd.to_datetime(df['harvest_da'])
+        try:
+            difference_harvest_prediction = abs(
+                df.loc[df['predictions'] == 1]['prediction_date_window'].mean() - df['harvest_da'].mean())
+            # the mean doy of the event prediction per field
+            harvest_date_prediction_model_mean = df.loc[df['predictions'] == 1][
+                'prediction_date_window'].mean().dayofyear
+            # the x window at which the model detects the event
+            harvest_date_prediction_model_position_wise = int(pd.DatetimeIndex([df.loc[df['predictions'] == 1][
+                                                                                    'prediction_date_window'].values[
+                                                                                    position_thr_exceeds_index]]).dayofyear.values)
+            difference_harvest_prediction = harvest_date_prediction_model_position_wise - df.harvest_da.mean().dayofyear
+        except:
+            difference_harvest_prediction = np.nan
+            harvest_date_prediction_model_position_wise = np.nan
+        if N_times_event_detected != 0:
+            N_times_event_detected = [1] * df.shape[0]
+        else:
+            N_times_event_detected = [0] * df.shape[0]
+        df[
+            'harvest_recognized'] = N_times_event_detected  # columns to indicate if one of the windows for that field an event was detected
+        df['error_harvest_prediction'] = difference_harvest_prediction
+        df['DOY_harvest_prediction'] = harvest_date_prediction_model_position_wise
+        return df
+    dict_dataset_event_prediction_acc = dict()
+    dict_dataset_fields_no_event_detected = dict()
+    for dataset in dict_cropcalendars_data:
+        Event_prediction_accuracies = []
+        Fields_no_event_detected_thr_method = []
+        for thr in thresholds_events_detection:
+            df_crop_calendar_prob = dict_model_predict.get('moving_window_extracts_'+dataset)
+
+            # only validate the result in a window around the event
+            df_crop_calendar_prob['Diff_harvest_2'] = pd.to_timedelta(df_crop_calendar_prob['Diff_harvest_2'])
+            df_crop_calendar_prob['Diff_harvest_3'] = pd.to_timedelta(df_crop_calendar_prob['Diff_harvest_3'])
+            # windows filtering in the defined window for validation
+            df_window_prob_filtered = df_crop_calendar_prob[(df_crop_calendar_prob['Diff_harvest_2'] >= pd.Timedelta('-{} days'.format(str(window_days_event)))) & (df_crop_calendar_prob['Diff_harvest_3'] <= pd.Timedelta('{} days'.format(str(window_days_event))))]
+            df_window_prob_filtered.reset_index(drop=True, inplace=True)
+
+            ids_fields = [item.rsplit('_', 1)[0] for item in df_window_prob_filtered.ID_field_orbit.to_list()]  # only split at last of the string
+            df_window_filtered_prediction_dates = df_window_prob_filtered.groupby(['ID_field_orbit']).apply(predict_event,position_thr_exceeds_index, thr)  ### function to determine the event date based on the defined conditions
+
+            ### calculate the RMSE for the different orbits and the orbits combined per model
+            RMSE_error, days_event_prediction_error, Fields_no_event_detected =  RMSE(df_window_filtered_prediction_dates,ROs_dataset_dict,p,thr, dataset)
+            Event_prediction_accuracies.append(RMSE_error)
+            Fields_no_event_detected_thr_method.append(Fields_no_event_detected)
+        Event_prediction_accuracies = pd.concat(Event_prediction_accuracies)
+        dict_dataset_event_prediction_acc.update({dataset.rsplit('_',2)[0]+'_{}'.format(crop_calendar_events[0].lower()): Event_prediction_accuracies})
+        Fields_no_event_detected_thr_method = pd.concat(Fields_no_event_detected_thr_method)
+        dict_dataset_fields_no_event_detected.update({dataset.rsplit('_',2)[0]+ '_{}'.format(crop_calendar_events[0].lower()): Fields_no_event_detected_thr_method})
+    return dict_dataset_event_prediction_acc, dict_dataset_fields_no_event_detected
+
+def find_optimal_model_threshold(dataset_RMSE,identifier):
+    df_thres_stats = []
+    df_model_stats = []
+    dict_model_stats = dict()
+    dict_thr_stats = dict()
+    def df_mean_identifier(df, identifier):
+        df_tmp = pd.DataFrame(df.mean(axis=0)).T
+        df_tmp.index = [str(df[identifier].values[0])]
+        return df_tmp
+    for dataset in dataset_RMSE:
+        # make column identifying the best threshold
+        df_RMSE = dataset_RMSE.get(dataset)
+        threshold_id = df_RMSE.index.to_list()
+        threshold_id = [item.rsplit('_', 1)[1] for item in threshold_id]
+        df_RMSE['threshold_id'] = threshold_id
+        df_thres_stats.append(df_RMSE.groupby(['threshold_id']).apply(df_mean_identifier, identifier='threshold_id'))
+        try:
+            df_thres_stats = pd.concat(df_thres_stats)
+            df_thres_stats = df_thres_stats.droplevel(level=[1])
+        except:
+            df_thres_stats = pd.DataFrame()
+
+        dict_thr_stats.update({dataset: df_thres_stats})
+
+        ### find the best model
+        model_id = df_RMSE.index.to_list()
+        model_id = ['Model_' + str(item.split('_')[1]) for item in model_id]
+        df_RMSE['model_id'] = model_id
+        df_model_stats.append(df_RMSE.groupby(['model_id']).apply(df_mean_identifier, identifier='model_id'))
+        try:
+            df_model_stats = pd.concat(df_model_stats)
+            df_model_stats = df_model_stats.droplevel(level=[1]).sort_index()
+        except:
+            df_model_stats = pd.DataFrame()
+        dict_model_stats.update({dataset:df_model_stats})
+    return dict_thr_stats, dict_model_stats
 
 
 
