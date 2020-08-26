@@ -17,6 +17,7 @@ import time
 import logging
 import zipfile
 import uuid
+import matplotlib.pyplot as plt
 from shapely.geometry import  Polygon
 from Pilot1.src.Crop_calendars.Main_functions import concat_df_from_Openeo
 from Pilot1.src.Crop_calendars.Main_functions import fAPAR_CropSAR_concat_OpenEO
@@ -28,7 +29,9 @@ from Pilot1.src.Crop_calendars.Main_functions import coherence_concat
 from Pilot1.src.Crop_calendars.Main_functions import Plot_time_series_metrics_crop_calendar
 from Pilot1.src.Crop_calendars.Main_functions import apply_NN_model
 from Pilot1.src.Crop_calendars.Main_functions import Plot_time_series_metrics_crop_calendar_probability
-
+from Pilot1.src.Crop_calendars.Main_functions import RMSE_plotting_against_prob_threshold
+from Pilot1.src.Crop_calendars.Main_functions import validate_crop_calendar_event_date
+from Pilot1.src.Crop_calendars.Main_functions import find_optimal_model_threshold
 
 
 ####### OPENEO EXTRACTION OF THE REQUIRED METRICS + PRE-PROCESSING OF THE INPUT DATA SO THE MODEL CAN USE IT AND PLOT THE FINAL OUTPUT
@@ -42,49 +45,62 @@ trained_model_dir = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kaspe
 outdir_prob_plotting = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10\6_daily_window_data'
 iterations = 30
 #### dictionaries containing some info on the used datasets to allow crop calendar generation
-datasets_dict = {
-                 '2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\35TLF_2018_parcel_ids_greece.shp",
+datasets_dict = {'2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\35TLF_2018_parcel_ids_greece.shp",
                  '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\32TQQ_2017_CAC_sbe.shp",
                  '2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\32TQQ_2018_CAC_sbe.shp",
                  '2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\32TQQ_2018_CAC_soy.shp",
                  '2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\32TQQ_2019_CAC_sbe.shp",
                  '2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\32TQQ_2019_CAC_soy.shp"}
+
+
 # '2018_Flax': r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all.shp",
 #                  '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates.shp",
 #                  '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_fields_planting_dates.shp",
 
 #datasets_dict = {'2019_TAP': r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp"}
-country_dataset_dict = {
-                 '2018_Greece': r"Greece",
-                 '2017_CAC_sbe': r"Italy",
-                 '2018_CAC_sbe': r"Italy",
-                 '2018_CAC_soy': r"Italy",
-                 '2019_CAC_sbe': r"Italy",
-                 '2019_CAC_soy': r"Italy"}
+country_dataset_dict = {'2018_Greece': r"Greece",
+                        '2017_CAC_sbe': r"Italy",
+                        '2018_CAC_sbe': r"Italy",
+                        '2018_CAC_soy': r"Italy",
+                        '2019_CAC_sbe': r"Italy",
+                        '2019_CAC_soy': r"Italy"}
+
+
+
+
 # '2018_Flax': r"Belgium",
 #                  '2018_WIG': r"Belgium",
 #                  '2019_WIG': r"Belgium",
 
 #country_dataset_dict = {'2019_TAP': r'Belgium'}
-ROs_dataset_dict = {
-                 '2018_Greece': ['ro29','ro131', 'ro109'],
-                 '2017_CAC_sbe': ['ro117','ro95'],
-                 '2018_CAC_sbe': ['ro44','ro117','ro95'],
-                 '2018_CAC_soy': ['ro117','ro95'],
-                 '2019_CAC_sbe': ['ro44','ro117','ro95','ro168'],
-                 '2019_CAC_soy': ['ro44','ro117','ro95', 'ro168']}
+ROs_dataset_dict = {'2018_Greece': ['ro29','ro131', 'ro109'],
+                    '2017_CAC_sbe': ['ro117','ro95'],
+                    '2018_CAC_sbe': ['ro44', 'ro117', 'ro95'],
+                    '2018_CAC_soy': ['ro117', 'ro95'],
+                    '2019_CAC_sbe': ['ro44', 'ro117', 'ro95', 'ro168'],
+                    '2019_CAC_soy': ['ro44', 'ro117', 'ro95', 'ro168']}
+
+
+
+
+
 # '2018_Flax':['ro110','ro161'],
 #                  '2018_WIG': ['ro110','ro161'],
 #                  '2019_WIG': ['ro110','ro161'],
 
 #ROs_dataset_dict = {'2019_TAP': ['ro110', 'ro161']}
-dict_cropcalendars_data_locations = {
-                           '2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\cropCalendars2018Komotini_cropcalendars.xlsx",
-                           '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\CAC_2017_sbe_cropcalendars.xlsx",
-                           '2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\CAC_2018_sbe_cropcalendars.xlsx",
-                           '2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\CAC_2018_soy_cropcalendars.xlsx",
-                           '2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\CAC_2019_sbe_cropcalendars.xlsx",
-                           '2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\CAC_2019_soy_cropcalendars.xlsx"}
+dict_cropcalendars_data_locations = {'2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\cropCalendars2018Komotini_cropcalendars.xlsx",
+                                     '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\CAC_2017_sbe_cropcalendars.xlsx",
+                                     '2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\CAC_2018_sbe_cropcalendars.xlsx",
+                                     '2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\CAC_2018_soy_cropcalendars.xlsx",
+                                     '2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\CAC_2019_sbe_cropcalendars.xlsx",
+                                     '2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\CAC_2019_soy_cropcalendars.xlsx"
+                                     }
+
+
+
+
+
 # '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_planting_harvest_dates_overview_reduc.xlsx",
 #                            '2018_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2018_WIG_planting_harvest_dates_overview_reduc.xlsx",
 #                            '2018_Flax' : r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all_overview.xlsx",
@@ -162,16 +178,48 @@ dict_VHVV = S1_VHVV_ratio_concat(dir_data_metrics, datasets_dict,ROs_dataset_dic
 dict_cropcalendars_data = combine_cropcalendar_data(datasets_dict, dict_cropcalendars_data_locations, crop_calendar_events)
 dict_moving_window_extracts = moving_window_metrics_extraction(datasets_dict, ROs_dataset_dict, dict_VHVV, dict_cropsar_API, metrics, VH_VV_range, fAPAR_range, dict_cropcalendars_data, crop_calendar_events)
 
-
-# E) Plotting of the NN outcome (probabilities) together with the time series of the metrics of interest
-
-##### function to plot the crop calendar probabilities according the NN model for the entire time series and together with the metrics
-### use the TAP  and fields outside Belgium:
-# #### function to use the trained model to  get the probabilities
+# E) Apply the NN model on the moving window extracts for different thresholds and positions exceeding the thresholds (function to define optimal model and threshold for event detection)
+# RMSE plots according to threshold and position of the window exceeding the threshold used for detecting the event
+Test_nr = r'Test10'
+thresholds_events_detection = np.arange(0.5,1,0.02) # testing different probabilility thresholds
+harvest_window_index = 2 # parameter describing the position of the 'harvest' windows which will be used to extract the predicted harvest date
+window_harvest_val = 60 # parameter to define which windows will be used to validate the result. The value represents the amount of days the window may be away from the actual event
+plotting_prob_detection_metrics = False
+outdir_RMSE_figs = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\accuracy\{}\6_daily_window_data\RMSE_plots_thresholds'.format(Test_nr)
+dict_statistics_per_model = dict()
 for p in range(iterations):
     Basefolder = os.path.join(r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10\6_daily_window_data','iteration_{}'.format(str(p)))
-    dict_model_predict = apply_NN_model(dict_moving_window_extracts, trained_model_dir, p)
-    Plot_time_series_metrics_crop_calendar_probability(ROs_dataset_dict, metrics, dict_cropcalendars_data,crop_calendar_events, Basefolder, country_dataset_dict, dict_model_predict, dict_cropsar_API, dict_VHVV)
+    dict_model_predict_prob_window = apply_NN_model(dict_moving_window_extracts, trained_model_dir, p)
+    # function to calculate the RMSE between the obsered and predicted evet per orbit and combined by using different probability threshold.
+    # The final predicted event date is calculated by taking the mean dates of the windows that detected the event in a certain window around the event OR the x window that detected the event
+    dict_event_predictions_date, dict_fields_no_event_detected = validate_crop_calendar_event_date(dict_cropcalendars_data, dict_model_predict_prob_window, thresholds_events_detection,window_harvest_val, harvest_window_index, crop_calendar_events, ROs_dataset_dict,p)
+
+    # plot the RMSE against the chosen threshold for prediction
+    RMSE_plotting_against_prob_threshold(dict_event_predictions_date, ROs_dataset_dict, crop_calendar_events,outdir_RMSE_figs, country_dataset_dict, harvest_window_index,p)
+    # save the amount of fields for which no event could be detected when using the x detection window for defining the event
+    for dataset_no_event in dict_fields_no_event_detected:
+        if p !=0:
+            dict_statistics_per_model.update({dataset_no_event: pd.concat([dict_event_predictions_date.get(dataset_no_event),dict_statistics_per_model.get(dataset_no_event)])})
+        else:
+            dict_statistics_per_model.update({dataset_no_event: dict_event_predictions_date.get(dataset_no_event)})
+        df_fields_no_event_detected = dict_fields_no_event_detected.get(dataset_no_event)
+        if not os.path.exists(os.path.join(outdir_RMSE_figs,country_dataset_dict.get(dataset_no_event.rsplit('_',2)[0]), dataset_no_event.rsplit('_',2)[0], 'Fields_no_harvest_detected_window_{}_thresholds_{}_ro_combined_model_{}.csv'.format(str(harvest_window_index+1),dataset_no_event.rsplit('_',2)[0],str(p)))):
+            df_fields_no_event_detected.to_csv(os.path.join(outdir_RMSE_figs,country_dataset_dict.get(dataset_no_event.rsplit('_',2)[0]), dataset_no_event.rsplit('_',2)[0], 'Fields_no_harvest_detected_window_{}_thresholds_{}_ro_combined_model_{}.csv'.format(str(harvest_window_index+1),dataset_no_event.rsplit('_',2)[0], str(p))))
+    ##### function to plot the crop calendar probabilities according the NN model for the entire time series and together with the metrics
+    ### use the TAP  and fields outside Belgium:
+    if plotting_prob_detection_metrics:
+        Plot_time_series_metrics_crop_calendar_probability(ROs_dataset_dict, metrics, dict_cropcalendars_data,crop_calendar_events, Basefolder, country_dataset_dict, dict_model_predict_prob_window, dict_cropsar_API, dict_VHVV)
+
+##### Below some extra statistics which will be calculated like the most optimal threshold and the best model iteration
+### find the best threshold and model
+dict_optimal_thresholds_dataset, dict_optimal_model_dataset = find_optimal_model_threshold(dict_statistics_per_model, identifier='threshold_id')
+
+
+for dataset in dict_optimal_model_dataset:
+    df_optimal_model = dict_optimal_model_dataset.get(dataset)
+    df_optimal_threshold= dict_optimal_thresholds_dataset.get(dataset)
+    df_optimal_model.to_csv(os.path.join(outdir_RMSE_figs, country_dataset_dict.get(dataset.rsplit('_',2)[0]), 'Optimal_model_{}_window_{}.csv'.format(dataset, str(harvest_window_index+1))))
+    df_optimal_threshold.to_csv(os.path.join(outdir_RMSE_figs, country_dataset_dict.get(dataset.rsplit('_',2)[0]), 'Optimal_threshold_{}_window_{}.csv'.format(dataset, str(harvest_window_index+1))))
 
 
 
