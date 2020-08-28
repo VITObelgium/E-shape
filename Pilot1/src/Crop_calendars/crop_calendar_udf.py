@@ -141,7 +141,7 @@ def udf_cropcalendars(udf_data:UdfData):
                                    unique_ids_fields, 'fAPAR')
 
     ### for now just extract the ro 110 and 161 for S1_VV and S1_VH
-    # TODO In the final script the RO should be dynamically chosen based on the overlap of descending and ascending orbits of the parcel
+    # TODO USE HERE THE INFORMATION OF MOST FREQUENT RO PER FIELD
     t_110 = pd.date_range("2019-01-02", "2019-12-31", freq="6D",
                           tz='utc').to_pydatetime()  # the dates at which this specific orbit occur in BE
     t_161 = pd.date_range("2019-01-05", "2019-12-31", freq="6D",
