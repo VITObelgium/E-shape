@@ -4,9 +4,9 @@ from Crop_calendars.Crop_calendars_openeo_integration import Cropcalendars
 import json
 def main():
     ######## DEFAULT PARAMETERS ##########
-    metrics_order = ['sigma_VH', 'sigma_VV', 'fAPAR']  # The index position of the metrics returned from the OpenEO datacube
+    metrics_order = ['sigma_ascending_VH', 'sigma_ascending_VV','sigma_angle','sigma_descending_VH', 'sigma_descending_VV','sigma_descending_angle', 'fAPAR']  # The index position of the metrics returned from the OpenEO datacube
     generator = Cropcalendars(fAPAR_rescale_Openeo= 0.005, coherence_rescale_Openeo= 0.004,
-                              path_harvest_model= r"S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10\model_update1.0_iteration0.h5",
+                              path_harvest_model= r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\Model\model_update1.0_iteration0.h5",
                               VH_VV_range_normalization= [-13, -3.5], fAPAR_range_normalization= [0,1], metrics_order = metrics_order)
 
     #### USER SPECIFIC PARARMETERS
@@ -30,7 +30,6 @@ def main():
 if __name__ == '__main__':
 
     main()
-
 
 
 
