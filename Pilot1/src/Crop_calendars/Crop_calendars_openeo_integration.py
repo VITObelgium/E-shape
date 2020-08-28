@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import geopandas as gpd
 import numpy as np
 import openeo
 import pandas as pd
@@ -7,6 +7,8 @@ import scipy.signal
 import shapely
 from openeo import Job
 from openeo.rest.conversions import timeseries_json_to_pandas
+import ee
+import statistics
 from datetime import timedelta
 
 from openeo.rest.job import RESTJob
@@ -86,10 +88,75 @@ class Cropcalendars():
                 fapar_masked=fapar.mask(S2mask)
 
                 gamma0=eoconn.load_collection('TERRASCOPE_S1_GAMMA0_V1')
+                sigma_ascending = eoconn.load_collection('S1_GRD_SIGMA0_ASCENDING')
+                sigma_descending = eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING')
+
                 coherence=eoconn.load_collection('TERRASCOPE_S1_SLC_COHERENCE_V1')
 
-                all_bands = gamma0.merge(fapar_masked)#.merge(coherence)
+                all_bands = gamma0.merge(sigma_ascending).merge(sigma_descending).merge(fapar_masked)#.merge(coherence)
                 return all_bands
+
+            def GEE_RO_retrieval(gj, i):
+                #### GEE part to find the available RO per orbit pass
+                ee.Initialize()
+                # Import the collections
+                sentinel1 = ee.ImageCollection("COPERNICUS/S1_GRD")
+                collection = ee.FeatureCollection(
+                    [ee.Feature(
+                        ee.Geometry.Polygon(
+                            [gj.features[i].geometry.coordinates[0]
+                             ]
+                        ), {'ID': '{}'.format(gj.features[i].properties['id'])}
+                    )]
+                )
+                filter_field = collection.filter(ee.Filter.eq('ID', '{}'.format(gj.features[i].properties['id'])))
+
+                try:
+                    ###############################################################################
+                    # PROCESSING SENTINEL 1
+                    ###############################################################################
+                    dict_metadata_ascending = dict()
+                    dict_metadata_descending = dict()
+                    for mode in ['ASCENDING', 'DESCENDING']:
+                        print('Extracting Sentinel-1 data in %s mode for %s' % (mode,gj.features[i].properties['id'] ))
+                        # Filter S1 by metadata properties.
+                        sentinel1_filtered = sentinel1.filterBounds(filter_field.geometry().bounds()).filterDate(
+                            start, end) \
+                            .filter(ee.Filter.eq('orbitProperties_pass', mode)) \
+                            .filter(ee.Filter.eq('instrumentMode', 'IW')) \
+                            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
+                            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
+
+                        sentinel1_collection_contents = ee.List(sentinel1_filtered).getInfo()
+                        current_nr_files = len(sentinel1_collection_contents['features'])
+
+                        print('{} Sentinel-1 images match the request ...'.format(current_nr_files))
+                        for img_nr in range(current_nr_files):
+                            current_sentinel_img_id = str(sentinel1_collection_contents['features'][img_nr]['id'])
+
+                            # if want to know the incidence angle for the field
+                            # current_sentinel_img = ee.Image(current_sentinel_img_id)
+                            # current_sentinel_img.clip(filter_field.geometry()).reduceRegion(ee.Reducer.mean()).getInfo()['angle']
+
+                            if 'S1A' in current_sentinel_img_id:
+                                RO = ((int(current_sentinel_img_id.rsplit('_')[7][1:]) - 73) % 175) + 1
+                            if 'S1B' in current_sentinel_img_id:
+                                RO = ((int(current_sentinel_img_id.rsplit('_')[7][1:]) - 27) % 175) + 1
+                            if mode == 'ASCENDING':
+                                dict_metadata_ascending.update(
+                                    {pd.to_datetime(current_sentinel_img_id.rsplit('_')[5][0:8]): RO})
+                            if mode == 'DESCENDING':
+                                dict_metadata_descending.update(
+                                    {pd.to_datetime(current_sentinel_img_id.rsplit('_')[5][0:8]): RO})
+
+                except KeyboardInterrupt:
+                    raise
+                # TO DO can eventually use the max angle orbit
+                RO_ascending_selection = statistics.mode(list(dict_metadata_ascending.values()))
+                RO_descending_selection = statistics.mode(list(dict_metadata_descending.values()))
+                dict_ascending_orbits_field.update({gj.features[i].properties['id']: RO_ascending_selection})
+                dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
+                return RO_ascending_selection,RO_descending_selection
 
 
             #### LOAD THE FIELDS FOR WHICH THE TIMESERIES SHOULD BE EXTRACTED FOR THE CROP CALENDARS
@@ -101,9 +168,16 @@ class Cropcalendars():
 
             ## give every parcel an unique id and convert it to a geometry collection
             unique_ids_fields = []
+            dict_ascending_orbits_field = dict()
+            dict_descending_orbits_field = dict()
+
             for i in range(len(gj)):
                 gj.features[i].properties['id'] = str(uuid.uuid1())
                 unique_ids_fields.extend([gj.features[i].properties['id']])
+                ### RETRIEVE THE MOST FREQUENT RELATIVE ORBIT PASS PER FIELD AND PER PASS FOR THE SPECIFIED TIME RANGE
+                RO_ascending_selection,RO_descending_selection = GEE_RO_retrieval(gj,i)
+                dict_ascending_orbits_field.update({gj.features[i].properties['id']: RO_ascending_selection})
+                dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
 
 
             geo=shapely.geometry.GeometryCollection([shapely.geometry.shape(feature["geometry"]).buffer(0) for feature in gj["features"]])
@@ -112,6 +186,7 @@ class Cropcalendars():
             #for n in range(len(geo)): unique_ids_fields.extend([uuid.uuid4().hex[:30].lower()])
 
             # get the datacube containing the time series data
+            #TODO QUESTION FOR OPENEO INTEGRATION: PER FIELD EXTRACT THE MOST FREQUENT RO FOR ASCENDING AND DESCENDING ORBIT => HOW IMPLEMENT THIS EFFICIENTLY WITHOUT LOOPING OVER ALL THE FIELDS
             bands_ts = get_bands(start,end)
 
 
