@@ -9,6 +9,8 @@ from openeo import Job
 from openeo.rest.conversions import timeseries_json_to_pandas
 import ee
 import statistics
+import collections
+
 from datetime import timedelta
 
 from openeo.rest.job import RESTJob
@@ -117,7 +119,10 @@ class Cropcalendars():
                     # PROCESSING SENTINEL 1
                     ###############################################################################
                     dict_metadata_ascending = dict()
+                    dict_angle_ascending = dict()
                     dict_metadata_descending = dict()
+                    dict_angle_descending = dict()
+                    ro_checked = [] # this variable is added to avoid finding the angle for each time a specific RO pass => reduces processing time
                     for mode in ['ASCENDING', 'DESCENDING']:
                         print('Extracting Sentinel-1 data in %s mode for %s' % (mode,gj.features[i].properties['id'] ))
                         # Filter S1 by metadata properties.
@@ -135,32 +140,53 @@ class Cropcalendars():
                         for img_nr in range(current_nr_files):
                             current_sentinel_img_id = str(sentinel1_collection_contents['features'][img_nr]['id'])
 
-                            # if want to know the incidence angle for the field
-                            # current_sentinel_img = ee.Image(current_sentinel_img_id)
-                            # current_sentinel_img.clip(filter_field.geometry()).reduceRegion(ee.Reducer.mean()).getInfo()['angle']
+
 
                             if 'S1A' in current_sentinel_img_id:
                                 RO = ((int(current_sentinel_img_id.rsplit('_')[7][1:]) - 73) % 175) + 1
                             if 'S1B' in current_sentinel_img_id:
                                 RO = ((int(current_sentinel_img_id.rsplit('_')[7][1:]) - 27) % 175) + 1
+
+                            if RO not in ro_checked:
+                                # if want to know the incidence angle for the field
+                                current_sentinel_img = ee.Image(current_sentinel_img_id)
+                                angle = current_sentinel_img.clip(filter_field.geometry()).reduceRegion(ee.Reducer.mean()).getInfo()['angle']
+                                if mode == 'ASCENDING':
+                                    dict_angle_ascending.update({RO : angle})
+
+                                if mode == 'DESCENDING':
+                                    dict_angle_descending.update({RO : angle})
+
+
+                            ro_checked.extend([RO])
                             if mode == 'ASCENDING':
                                 dict_metadata_ascending.update(
-                                    {pd.to_datetime(current_sentinel_img_id.rsplit('_')[5][0:8]): RO})
+                                    {pd.to_datetime(current_sentinel_img_id.rsplit('_')[5][0:8]):RO})
                             if mode == 'DESCENDING':
                                 dict_metadata_descending.update(
                                     {pd.to_datetime(current_sentinel_img_id.rsplit('_')[5][0:8]): RO})
 
                 except KeyboardInterrupt:
                     raise
-                # TO DO can eventually use the max angle orbit
-                RO_ascending_selection = statistics.mode(list(dict_metadata_ascending.values()))
-                list_ascending_passes = sorted(list((key) for key, value in dict_metadata_ascending.items() if value == RO_ascending_selection))
-                dict_metadata_ascending_RO_selection ={list_ascending_passes[0].strftime('%Y-%m-%d') :RO_ascending_selection}
-                RO_descending_selection = statistics.mode(list(dict_metadata_descending.values()))
-                list_descending_passes = sorted(list((key) for key, value in dict_metadata_descending.items() if value == RO_descending_selection))
-                dict_metadata_descending_RO_selection = {list_descending_passes[0].strftime('%Y-%m-%d') :RO_descending_selection}
+                # TODO can eventually use the max angle orbit
+                # def to find the optimal orbit
+                def find_optimal_RO_per_pass(dict_orbit_metadata_frequency_info, dict_angle_orbit_pass):
+                    RO_orbit_counter =  collections.Counter(list(dict_orbit_metadata_frequency_info.values()))
+                    RO_steepest_angle = max(dict_angle_orbit_pass, key = lambda x: dict_angle_orbit_pass[x])
+                    # see if the orbit with steepest angle has not a lot fewer coverages compared to the orbit with the maximum coverages. In this case chosen
+                    if RO_orbit_counter.get(RO_steepest_angle) < int(max(list(RO_orbit_counter.values()))*0.80):
+                        RO_orbit_selection = statistics.mode(list(dict_orbit_metadata_frequency_info.values()))
+                    else:
+                        RO_orbit_selection = RO_steepest_angle
+                    list_orbit_passes = sorted(list((key) for key, value in dict_orbit_metadata_frequency_info.items() if value == RO_orbit_selection))
+                    dict_metadata_RO_selection ={list_orbit_passes[0].strftime('%Y-%m-%d') :RO_orbit_selection}
+                    return dict_metadata_RO_selection, RO_orbit_selection
+
+                dict_metadata_ascending_RO_selection, RO_ascending_selection = find_optimal_RO_per_pass(dict_metadata_ascending, dict_angle_ascending)
                 dict_ascending_orbits_field.update({gj.features[i].properties['id']: RO_ascending_selection})
+                dict_metadata_descending_RO_selection, RO_descending_selection = find_optimal_RO_per_pass(dict_metadata_descending, dict_angle_descending)
                 dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
+
                 return dict_metadata_ascending_RO_selection, dict_metadata_descending_RO_selection
 
 
@@ -215,7 +241,6 @@ class Cropcalendars():
 
 
             run_local = False
-
             if not run_local:
                 job_result:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python').execute_batch(r"crop_calendar_field_test.json")
                 out_location =  "cropcalendar.json" #r'C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\cropcalendar.json'
