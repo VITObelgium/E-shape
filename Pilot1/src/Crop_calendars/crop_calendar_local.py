@@ -25,7 +25,7 @@ coherence_rescale_Openeo= 0.004
 metrics_order =  ['gamma_VH', 'gamma_VV', 'sigma_ascending_VH', 'sigma_ascending_VV','sigma_angle','sigma_descending_VH', 'sigma_descending_VV','sigma_descending_angle', 'fAPAR']  # The index position of the metrics returned from the OpenEO datacube
   # The index position of the metrics returned from the OpenEO datacube
 
-path_harvest_model= r'C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\Model\model_update1.0_iteration0.h5' #r"/data/users/Public/driesj/model_update1.0_iteration0.h5"
+path_harvest_model=r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\Model\model_update1.0_iteration24.h5"
 
 ######## FUNCTIONS ################
 # rename the columns to the name of the metric and the id of the field
@@ -118,7 +118,9 @@ def create_crop_calendars_fields(df, ids_field):
                 df.index.str.contains(id))].prediction_date_window).mean()  # take the average of the dates at which a crop event occured according to the model #TODO adapt this method based on analysis results
         if not np.isnan(crop_calendar_date.day):  ## check if no nan date for the event
             crop_calendar_date = crop_calendar_date.strftime('%Y-%m-%d')  # convert to string format
-        df_crop_calendars.append(pd.DataFrame(data=crop_calendar_date, index=[id], columns=['Harvest_date']))
+            df_crop_calendars.append(pd.DataFrame(data=crop_calendar_date, index=[id], columns=['Harvest_date']))
+        else:
+            df_crop_calendars.append(pd.DataFrame(data = np.nan, index = [id], columns= ['Harvest_date']))
     df_crop_calendars = pd.concat(df_crop_calendars)
     return df_crop_calendars
 
@@ -164,7 +166,7 @@ def udf_cropcalendars_local(ts_dict, unique_ids_fields, RO_ascending_selection_p
 
 
     #ro_s = ['ro110', 'ro161']  # the orbits of consideration
-    ro_s = {'descending':RO_ascending_selection_per_field, 'ascending': RO_descending_selection_per_field}
+    ro_s = {'ascending':RO_ascending_selection_per_field, 'descending': RO_descending_selection_per_field}
     ### create windows in the time series to extract the metrics and store each window in a seperate row in the dataframe
     ts_df_input_NN = prepare_df_NN_model(ts_df_prepro, window_values, unique_ids_fields, ro_s,
                                          metrics_crop_event)

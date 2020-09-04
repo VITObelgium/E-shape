@@ -45,12 +45,14 @@ trained_model_dir = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kaspe
 outdir_prob_plotting = r'S:\eshape\Pilot 1\data\model_harvest_detection\model_Kasper\output\Test10\6_daily_window_data'
 iterations = 30
 #### dictionaries containing some info on the used datasets to allow crop calendar generation
-datasets_dict = {'2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\35TLF_2018_parcel_ids_greece.shp",
-                 '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\32TQQ_2017_CAC_sbe.shp",
-                 '2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\32TQQ_2018_CAC_sbe.shp",
-                 '2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\32TQQ_2018_CAC_soy.shp",
-                 '2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\32TQQ_2019_CAC_sbe.shp",
-                 '2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\32TQQ_2019_CAC_soy.shp"}
+datasets_dict = {'2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\32TQQ_2018_CAC_sbe.shp"}
+
+#'2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\32TQQ_2017_CAC_sbe.shp",
+#'2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\32TQQ_2018_CAC_soy.shp",
+#'2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\32TQQ_2019_CAC_sbe.shp",
+#'2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\32TQQ_2019_CAC_soy.shp",
+# '2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\35TLF_2018_parcel_ids_greece.shp",
+
 
 
 # '2018_Flax': r"S:\eshape\Pilot 1\data\Flax_fields\vlas_2018_wgs_all.shp",
@@ -58,12 +60,13 @@ datasets_dict = {'2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\35TLF_20
 #                  '2019_WIG': r"S:\eshape\Pilot 1\data\WIG_data\2019_WIG_fields_planting_dates.shp",
 
 #datasets_dict = {'2019_TAP': r"S:\eshape\Pilot 1\data\TAP_monitoring_experiment\2019_TAP_monitoring_experiment.shp"}
-country_dataset_dict = {'2018_Greece': r"Greece",
-                        '2017_CAC_sbe': r"Italy",
-                        '2018_CAC_sbe': r"Italy",
-                        '2018_CAC_soy': r"Italy",
-                        '2019_CAC_sbe': r"Italy",
-                        '2019_CAC_soy': r"Italy"}
+country_dataset_dict = {'2018_CAC_sbe': r"Italy"}
+# '2017_CAC_sbe': r"Italy",
+#'2018_CAC_soy': r"Italy",
+#'2019_CAC_sbe': r"Italy",
+#'2019_CAC_soy': r"Italy"
+# '2018_Greece': r"Greece",
+
 
 
 
@@ -73,15 +76,13 @@ country_dataset_dict = {'2018_Greece': r"Greece",
 #                  '2019_WIG': r"Belgium",
 
 #country_dataset_dict = {'2019_TAP': r'Belgium'}
-ROs_dataset_dict = {'2018_Greece': ['ro29','ro131', 'ro109'],
-                    '2017_CAC_sbe': ['ro117','ro95'],
-                    '2018_CAC_sbe': ['ro44', 'ro117', 'ro95'],
-                    '2018_CAC_soy': ['ro117', 'ro95'],
-                    '2019_CAC_sbe': ['ro44', 'ro117', 'ro95', 'ro168'],
-                    '2019_CAC_soy': ['ro44', 'ro117', 'ro95', 'ro168']}
+ROs_dataset_dict = {'2018_CAC_sbe': ['ro44', 'ro117', 'ro95']}
 
-
-
+# '2017_CAC_sbe': ['ro117', 'ro95'],
+#'2018_CAC_soy': ['ro117', 'ro95'],
+#'2019_CAC_sbe': ['ro44', 'ro117', 'ro95', 'ro168'],
+#'2019_CAC_soy': ['ro44', 'ro117', 'ro95', 'ro168']
+# '2018_Greece': ['ro29','ro131', 'ro109'],
 
 
 # '2018_Flax':['ro110','ro161'],
@@ -89,14 +90,12 @@ ROs_dataset_dict = {'2018_Greece': ['ro29','ro131', 'ro109'],
 #                  '2019_WIG': ['ro110','ro161'],
 
 #ROs_dataset_dict = {'2019_TAP': ['ro110', 'ro161']}
-dict_cropcalendars_data_locations = {'2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\cropCalendars2018Komotini_cropcalendars.xlsx",
-                                     '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\CAC_2017_sbe_cropcalendars.xlsx",
-                                     '2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\CAC_2018_sbe_cropcalendars.xlsx",
-                                     '2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\CAC_2018_soy_cropcalendars.xlsx",
-                                     '2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\CAC_2019_sbe_cropcalendars.xlsx",
-                                     '2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\CAC_2019_soy_cropcalendars.xlsx"
-                                     }
-
+dict_cropcalendars_data_locations = {'2018_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_sbe\CAC_2018_sbe_cropcalendars.xlsx"}
+# '2017_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2017_sbe\CAC_2017_sbe_cropcalendars.xlsx",
+#'2018_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2018_soy\CAC_2018_soy_cropcalendars.xlsx",
+#'2019_CAC_sbe': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_sbe\CAC_2019_sbe_cropcalendars.xlsx",
+#'2019_CAC_soy': r"S:\eshape\Pilot 1\data\CAC_seeds\CAC_2019_soy\CAC_2019_soy_cropcalendars.xlsx"
+# '2018_Greece': r"S:\eshape\Pilot 1\data\Parcels_greece\cropCalendars2018Komotini_cropcalendars.xlsx",
 
 
 
@@ -195,7 +194,8 @@ for p in range(iterations):
     dict_event_predictions_date, dict_fields_no_event_detected = validate_crop_calendar_event_date(dict_cropcalendars_data, dict_model_predict_prob_window, thresholds_events_detection,window_harvest_val, harvest_window_index, crop_calendar_events, ROs_dataset_dict,p)
 
     # plot the RMSE against the chosen threshold for prediction
-    RMSE_plotting_against_prob_threshold(dict_event_predictions_date, ROs_dataset_dict, crop_calendar_events,outdir_RMSE_figs, country_dataset_dict, harvest_window_index,p)
+    #RMSE_plotting_against_prob_threshold(dict_event_predictions_date, ROs_dataset_dict, crop_calendar_events,outdir_RMSE_figs, country_dataset_dict, harvest_window_index,p)
+
     # save the amount of fields for which no event could be detected when using the x detection window for defining the event
     for dataset_no_event in dict_fields_no_event_detected:
         if p !=0:

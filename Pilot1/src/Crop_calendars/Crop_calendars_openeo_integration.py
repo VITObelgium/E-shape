@@ -16,7 +16,7 @@ from tensorflow.keras.models import load_model
 import geojson
 import uuid
 import json
-
+import datetime
 # General approach:
 #
 # first merge all required inputs into a single multiband raster datacube
@@ -98,7 +98,8 @@ class Cropcalendars():
 
             def GEE_RO_retrieval(gj, i):
                 #### GEE part to find the available RO per orbit pass
-                ee.Initialize()
+                if i == 0:
+                    ee.Initialize()
                 # Import the collections
                 sentinel1 = ee.ImageCollection("COPERNICUS/S1_GRD")
                 collection = ee.FeatureCollection(
@@ -153,10 +154,14 @@ class Cropcalendars():
                     raise
                 # TO DO can eventually use the max angle orbit
                 RO_ascending_selection = statistics.mode(list(dict_metadata_ascending.values()))
+                list_ascending_passes = sorted(list((key) for key, value in dict_metadata_ascending.items() if value == RO_ascending_selection))
+                dict_metadata_ascending_RO_selection ={list_ascending_passes[0].strftime('%Y-%m-%d') :RO_ascending_selection}
                 RO_descending_selection = statistics.mode(list(dict_metadata_descending.values()))
+                list_descending_passes = sorted(list((key) for key, value in dict_metadata_descending.items() if value == RO_descending_selection))
+                dict_metadata_descending_RO_selection = {list_descending_passes[0].strftime('%Y-%m-%d') :RO_descending_selection}
                 dict_ascending_orbits_field.update({gj.features[i].properties['id']: RO_ascending_selection})
                 dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
-                return RO_ascending_selection,RO_descending_selection
+                return dict_metadata_ascending_RO_selection, dict_metadata_descending_RO_selection
 
 
             #### LOAD THE FIELDS FOR WHICH THE TIMESERIES SHOULD BE EXTRACTED FOR THE CROP CALENDARS
@@ -186,33 +191,51 @@ class Cropcalendars():
             #for n in range(len(geo)): unique_ids_fields.extend([uuid.uuid4().hex[:30].lower()])
 
             # get the datacube containing the time series data
-            #TODO QUESTION FOR OPENEO INTEGRATION: PER FIELD EXTRACT THE MOST FREQUENT RO FOR ASCENDING AND DESCENDING ORBIT => HOW IMPLEMENT THIS EFFICIENTLY WITHOUT LOOPING OVER ALL THE FIELDS
             bands_ts = get_bands(start,end)
 
 
             ##### POST PROCESSING TIMESERIES USING A UDF
             timeseries = bands_ts.filter_temporal(start,end).polygonal_mean_timeseries(geo)
-
             udf = self.load_udf('crop_calendar_udf.py')
+
+
+            # replace some values in the UDF since VAR cannot be loaded directly in the UDF
+            #TODO Find solution so that OpenEO can deal with input VAR
+            udf = udf.replace('$window_values', '{}'.format(window_values))
+            udf = udf.replace('$thr_detection', '{}'.format(thr_detection))
+            udf = udf.replace('$crop_calendar_event', '"{}"'.format(crop_calendar_event))
+            udf = udf.replace('$metrics_crop_event', '{}'.format(metrics_crop_event))
+            udf = udf.replace('$VH_VV_range_normalization', '{}'.format(self.VH_VV_range_normalization))
+            udf = udf.replace('$fAPAR_range_normalization', '{}'.format(self.fAPAR_range_normalization))
+            udf = udf.replace('$fAPAR_rescale_Openeo', '{}'.format(self.fAPAR_rescale_Openeo))
+            udf = udf.replace('$coherence_rescale_Openeo', '{}'.format(self.coherence_rescale_Openeo))
+            udf = udf.replace('$RO_ascending_selection_per_field', '{}'.format(dict_ascending_orbits_field)) # Fill in the RO selected per field ID in the UDF
+            udf = udf.replace('$RO_descending_selection_per_field', '{}'.format(dict_descending_orbits_field))
+            udf = udf.replace('$unique_ids_fields', '{}'.format(unique_ids_fields))
+
 
             run_local = False
 
             if not run_local:
                 job_result:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python').execute_batch(r"crop_calendar_field_test.json")
-                out_location = "cropcalendar.json"
+                out_location =  "cropcalendar.json" #r'C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\cropcalendar.json'
                 job_result.download_results(out_location)
                 with open(out_location,'r') as calendar_file:
                     crop_calendars = json.load(calendar_file)
             else:
                 # demo datacube of VH_VV and fAPAR time series
-                with open(r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\TAP_fields_datacube_metrics_test.json",'r') as ts_file:
+                with open(r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\datacube_metrics_sigma_V2.json",'r') as ts_file:
                     ts_dict = json.load(ts_file)
                     df_metrics = timeseries_json_to_pandas(ts_dict)
-                    df_metrics.index  = pd.to_datetime(df_metrics.index)
+                    df_metrics.index = pd.to_datetime(df_metrics.index)
+
+
                 # use the UDF to determine the crop calendars for the fields in the geometrycollection
                 from .crop_calendar_udf import udf_cropcalendars
+                #from .crop_calendar_local import udf_cropcalendars_local
                 crop_calendars = udf_cropcalendars(df_metrics, unique_ids_fields)
 
+                #crop_calendars = udf_cropcalendars_local(ts_dict, unique_ids_fields, dict_ascending_orbits_field, dict_descending_orbits_field)
             #### FINALLY ASSIGN THE CROP CALENDAR EVENTS AS PROPERTIES TO THE GEOJSON FILE WITH THE FIELDS
             for s in range(len(gj)):
                 for c in range(crop_calendars.shape[1]):  # the amount of crop calendar events which were determined
