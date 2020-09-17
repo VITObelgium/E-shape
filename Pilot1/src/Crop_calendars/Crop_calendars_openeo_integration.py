@@ -168,12 +168,12 @@ class Cropcalendars():
 
                 except KeyboardInterrupt:
                     raise
-                # TODO can eventually use the max angle orbit
                 # def to find the optimal orbit
                 def find_optimal_RO_per_pass(dict_orbit_metadata_frequency_info, dict_angle_orbit_pass):
                     RO_orbit_counter =  collections.Counter(list(dict_orbit_metadata_frequency_info.values()))
                     RO_steepest_angle = max(dict_angle_orbit_pass, key = lambda x: dict_angle_orbit_pass[x])
-                    # see if the orbit with steepest angle has not a lot fewer coverages compared to the orbit with the maximum coverages. In this case chosen
+                    # see if the orbit with steepest angle has not a lot fewer coverages compared to the orbit with the maximum coverages. In case this orbit has more than 80% less
+                    #coverage another orbit is selected
                     if RO_orbit_counter.get(RO_steepest_angle) < int(max(list(RO_orbit_counter.values()))*0.80):
                         RO_orbit_selection = statistics.mode(list(dict_orbit_metadata_frequency_info.values()))
                     else:
