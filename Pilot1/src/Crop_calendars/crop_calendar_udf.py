@@ -69,7 +69,6 @@ def prepare_df_NN_model(df, window_values, ids_field, ro_s, metrics_crop_event):
         orbit_pass = [r'descending', r'ascending']
         o = 0
         for ts_orbit in ts_orbits:
-            # TODO loop over the orbit passes and change the name of the metrics crop event so that it can be found by the filtering
             df_orbit = df.reindex(ts_orbit)
             metrics_crop_event_orbit_pass = [item.format(orbit_pass[0]) for item in metrics_crop_event]
             moving_window_steps = np.arange(0, df_orbit.shape[
@@ -162,15 +161,7 @@ def udf_cropcalendars(udf_data:UdfData):
     ts_df_prepro = rescale_metrics(ts_df_prepro, fAPAR_rescale_Openeo, fAPAR_range_normalization,
                                    unique_ids_fields, 'fAPAR')
 
-    ### for now just extract the ro 110 and 161 for S1_VV and S1_VH
-    # TODO USE HERE THE INFORMATION OF MOST FREQUENT RO PER FIELD
-    # t_110 = pd.date_range("2019-01-02", "2019-12-31", freq="6D",
-    #                       tz='utc').to_pydatetime()  # the dates at which this specific orbit occur in BE
-    # t_161 = pd.date_range("2019-01-05", "2019-12-31", freq="6D",
-    #                       tz='utc').to_pydatetime()  # the dates at which this specific orbit occur in BE
-    #ts_orbits = [t_110, t_161]
     ro_s = {'ascending': RO_ascending_selection_per_field, 'descending': RO_descending_selection_per_field}
-    #ro_s = ['ro110', 'ro161']  # the orbits of consideration
 
     ### create windows in the time series to extract the metrics and store each window in a seperate row in the dataframe
     ts_df_input_NN = prepare_df_NN_model(ts_df_prepro, window_values, unique_ids_fields, ro_s,
