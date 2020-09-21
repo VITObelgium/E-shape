@@ -24,6 +24,8 @@ coherence_rescale_Openeo = $coherence_rescale_Openeo
 RO_ascending_selection_per_field=$RO_ascending_selection_per_field
 RO_descending_selection_per_field = $RO_descending_selection_per_field
 unique_ids_fields = $unique_ids_fields
+index_window_above_thr = $index_window_above_thr
+
 metrics_order =  ['gamma_VH', 'gamma_VV', 'sigma_ascending_VH', 'sigma_ascending_VV','sigma_angle','sigma_descending_VH', 'sigma_descending_VV','sigma_descending_angle', 'fAPAR']   # The index position of the metrics returned from the OpenEO datacube
   # The index position of the metrics returned from the OpenEO datacube
 
@@ -115,17 +117,35 @@ def apply_NN_model_crop_calendars(df, amount_metrics_model, thr_detection, crop_
 
 # function to create the crop calendar information for the fields
 def create_crop_calendars_fields(df, ids_field):
-    df_crop_calendars = []
-    for id in ids_field:  ### here can insert a loop for the different crop calendar events for that field
-        crop_calendar_date = pd.to_datetime(df[(df['NN_model_detection_Harvest'] == 1) & (
-                df.index.str.contains(id))].prediction_date_window).mean()  # take the average of the dates at which a crop event occured according to the model #TODO adapt this method based on analysis results
-        if not np.isnan(crop_calendar_date.day):  ## check if no nan date for the event
-            crop_calendar_date = crop_calendar_date.strftime('%Y-%m-%d')  # convert to string format
-            df_crop_calendars.append(pd.DataFrame(data=crop_calendar_date, index=[id], columns=['Harvest_date']))
-        else:
-            df_crop_calendars.append(pd.DataFrame(data=np.nan, index=[id], columns=['Harvest_date']))
-    df_crop_calendars = pd.concat(df_crop_calendars)
-    return df_crop_calendars
+    def create_crop_calendars_fields(df, ids_field, index_window_above_thr):
+        df_crop_calendars = []  # the dataframe the will store per field the predict crop calendar event
+        orbit_passes = [r'ascending', r'descending']
+        for id in ids_field:  ### here can insert a loop for the different crop calendar events for that field
+            df_crop_calendars_orbit_pass = []  # the dataframe that will temporarily store the predicted crop calendar event per orbit pass
+            # TODO should be updated because now the mean date for both ascending and descending orbits are merged
+            df_filtered_id = df[df.index.str.contains(id)]
+            for orbit_pass in orbit_passes:
+                df_filtered_id_pass = df_filtered_id[(df_filtered_id.index.str.contains(orbit_pass)) & (
+                            df_filtered_id['NN_model_detection_Harvest'] == 1)]
+                if not df_filtered_id_pass.shape[0] < index_window_above_thr + 1:
+                    df_crop_calendars_orbit_pass.append(pd.DataFrame(data=pd.to_datetime(
+                        df_filtered_id_pass.iloc[index_window_above_thr, :]['prediction_date_window']),
+                                                                     index=['{}'.format(orbit_pass)], columns=[
+                            'prediction_date']))  # select the x-th position for which the threshold was exceeded
+
+            if df_crop_calendars_orbit_pass:
+                df_crop_calendars_orbit_pass = pd.concat(df_crop_calendars_orbit_pass)
+                crop_calendar_date = pd.to_datetime(df_crop_calendars_orbit_pass.prediction_date).mean()
+            else:
+                crop_calendar_date = pd.to_datetime(np.nan)
+
+            if not np.isnan(crop_calendar_date.day):  ## check if no nan date for the event
+                crop_calendar_date = crop_calendar_date.strftime('%Y-%m-%d')  # convert to string format
+                df_crop_calendars.append(pd.DataFrame(data=crop_calendar_date, index=[id], columns=['Harvest_date']))
+            else:
+                df_crop_calendars.append(pd.DataFrame(data=np.nan, index=[id], columns=['Harvest_date']))
+        df_crop_calendars = pd.concat(df_crop_calendars)
+        return df_crop_calendars
 
 def udf_cropcalendars(udf_data:UdfData):
     ts_dict = udf_data.get_structured_data_list()[0].data

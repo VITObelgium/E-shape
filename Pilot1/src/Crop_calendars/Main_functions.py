@@ -129,14 +129,14 @@ def Openeo_extraction_S2_allbands(start, end, shp_fields, outfolder, batch =  Fa
             S2mask = create_advanced_mask(connection.load_collection('TERRASCOPE_S2_TOC_V2', bands = ['SCENECLASSIFICATION_20M']).band('SCENECLASSIFICATION_20M'),start,end)
             S2_timeseries_mask = connection.load_collection('TERRASCOPE_S2_TOC_V2').mask(S2mask)
             S2_timeseries_mask.filter_temporal(start, end).polygonal_mean_timeseries(shp_fields)\
-                .execute_batch(os.path.join(outfolder, '{}_{}_S2_allbands_TAP.json'.format(start.replace('-',''),end.replace('-',''))),
-                               job_options= {"driver-memory": "10g",
-                               "driver-cores":"6",
-                               "driver-memoryOverhead": "6g",
-                               "executor-memory":"8g" ,
-                               "executor-memoryOverhead" : "4000m",
-                               "executor-cores": "2",
-                               "queue" : "geoviewer"})
+                .execute_batch(os.path.join(outfolder, '{}_{}_S2_allbands_WIG_2019_part1_2_inwbuffer.json'.format(start.replace('-',''),end.replace('-',''))),
+                               job_options={"driver-memory": "40g",
+                                            "driver-cores": "6",
+                                            "driver-memoryOverhead": "8g",
+                                            "executor-memory": "15g",
+                                            "executor-memoryOverhead": "2500m",
+                                            "executor-cores": "2",
+                                            "queue": "geoviewer"})
 
 
 
@@ -365,7 +365,7 @@ def DFI_calc(df,id):
 def BSI_calc(df, id):
     df['BSI_{}'.format(id)] = (df['B11_{}'.format(id)]-df['B04_{}'.format(id)])/(df['B08_{}'.format(id)]+df['B02_{}'.format(id)])
     return df
-def S2_bands_openeo_to_indices(indir_json, shp_fields):
+def S2_bands_openeo_to_indices(indir_json, shp_fields, key):
     dict_S2_NDTI = dict()
     dict_S2_DFI = dict()
     dict_S2_BSI = dict()
@@ -392,10 +392,10 @@ def S2_bands_openeo_to_indices(indir_json, shp_fields):
         df_S2_filtered_DFI = df_S2[columns_DFI]
         df_S2_filtered_BSI = df_S2[columns_BSI]
         df_S2_SWIR_bands = df_S2.filter(regex='B11*|B12*') # filter on bands 11 and 12
-        dict_S2_NDTI.update({'2019_TAP': df_S2_filtered_NDTI})
-        dict_S2_DFI.update({'2019_TAP': df_S2_filtered_DFI})
-        dict_S2_BSI.update({'2019_TAP': df_S2_filtered_BSI})
-        dict_S2_SWIR.update({'2019_TAP': df_S2_SWIR_bands})
+        dict_S2_NDTI.update({'{}'.format(key): df_S2_filtered_NDTI})
+        dict_S2_DFI.update({'{}'.format(key): df_S2_filtered_DFI})
+        dict_S2_BSI.update({'{}'.format(key): df_S2_filtered_BSI})
+        dict_S2_SWIR.update({'{}'.format(key): df_S2_SWIR_bands})
     return dict_S2_NDTI, dict_S2_DFI, dict_S2_BSI, dict_S2_SWIR
 
 

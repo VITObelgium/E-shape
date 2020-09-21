@@ -13,7 +13,8 @@ import json
 
 ##### CROP CALENDAR EVENT SPECIFIC PARAMETERS FOR THE EVENT THAT NEEDS TO BE DETERMINED
 window_values = 5  # define the amount of S1 coverages within the window for extraction
-thr_detection = 0.8  # threshold for crop event detection
+thr_detection = 0.75  # threshold for crop event detection
+index_window_above_thr = 2
 crop_calendar_event = 'Harvest'
 metrics_crop_event = ['fAPAR', 'VH_VV_{}']  # the metrics used to determine the crop calendar event
 VH_VV_range_normalization= [-13, -3.5]
@@ -104,18 +105,32 @@ def apply_NN_model_crop_calendars(df, amount_metrics_model, thr_detection, crop_
     x_test = x_test.fillna(method='ffill')  # fill the empty places
     loaded_model = load_model(NN_model_dir)
     predictions = loaded_model.predict(x_test)
+
     predictions[predictions >= thr_detection] = 1
     predictions[predictions < thr_detection] = 0
     df['NN_model_detection_{}'.format(crop_calendar_event)] = predictions
     return df
 
 # function to create the crop calendar information for the fields
-def create_crop_calendars_fields(df, ids_field):
-    df_crop_calendars = []
+def create_crop_calendars_fields(df, ids_field, index_window_above_thr):
+    df_crop_calendars = [] # the dataframe the will store per field the predict crop calendar event
+    orbit_passes = [r'ascending', r'descending']
     for id in ids_field:  ### here can insert a loop for the different crop calendar events for that field
+        df_crop_calendars_orbit_pass = []  # the dataframe that will temporarily store the predicted crop calendar event per orbit pass
         #TODO should be updated because now the mean date for both ascending and descending orbits are merged
-        crop_calendar_date = pd.to_datetime(df[(df['NN_model_detection_Harvest'] == 1) & (
-                df.index.str.contains(id))].prediction_date_window).mean()  # take the average of the dates at which a crop event occured according to the model #TODO adapt this method based on analysis results
+        df_filtered_id = df[df.index.str.contains(id)]
+        for orbit_pass in orbit_passes:
+            df_filtered_id_pass = df_filtered_id[(df_filtered_id.index.str.contains(orbit_pass)) & (df_filtered_id['NN_model_detection_Harvest'] == 1)]
+            if not df_filtered_id_pass.shape[0] <index_window_above_thr + 1:
+                df_crop_calendars_orbit_pass.append(pd.DataFrame(data = pd.to_datetime(df_filtered_id_pass.iloc[index_window_above_thr,:]['prediction_date_window']),
+                                                          index = ['{}'.format(orbit_pass)], columns= ['prediction_date'])) # select the x-th position for which the threshold was exceeded
+
+        if df_crop_calendars_orbit_pass:
+            df_crop_calendars_orbit_pass = pd.concat(df_crop_calendars_orbit_pass)
+            crop_calendar_date = pd.to_datetime(df_crop_calendars_orbit_pass.prediction_date).mean()
+        else:
+            crop_calendar_date = pd.to_datetime(np.nan)
+
         if not np.isnan(crop_calendar_date.day):  ## check if no nan date for the event
             crop_calendar_date = crop_calendar_date.strftime('%Y-%m-%d')  # convert to string format
             df_crop_calendars.append(pd.DataFrame(data=crop_calendar_date, index=[id], columns=['Harvest_date']))
@@ -175,7 +190,7 @@ def udf_cropcalendars_local(ts_dict, unique_ids_fields, RO_ascending_selection_p
     df_NN_prediction = apply_NN_model_crop_calendars(ts_df_input_NN, amount_metrics_model, thr_detection,
                                                      crop_calendar_event, NN_model_dir)
 
-    df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction, unique_ids_fields)
+    df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction, unique_ids_fields, index_window_above_thr)
 
     udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=df_crop_calendars_result.to_dict(),type="dict")])
     return udf_data
