@@ -206,8 +206,8 @@ def udf_cropcalendars(udf_data:UdfData):
     ### apply the trained NN model on the window extracts
     df_NN_prediction = apply_NN_model_crop_calendars(ts_df_input_NN, amount_metrics_model, context_param_var.get('thr_detection'),
                                                      context_param_var.get('crop_calendar_event'), NN_model_dir)
-    print(df_NN_prediction)
     df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction, context_param_var.get('unique_ids_fields'), context_param_var.get('index_window_above_thr'))
+    print(df_crop_calendars_result)
 
     udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=df_crop_calendars_result.to_dict(),type="dict")])
     return udf_data

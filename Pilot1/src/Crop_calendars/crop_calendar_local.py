@@ -41,7 +41,7 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     if Spark:
         cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
     else:
-        cropsar_df = pd.read_csv(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\cropsar_df_openeo_output_V200_cleaning.csv")
+        cropsar_df = pd.read_csv(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\cropsar_df_openeo_output_V200_cleaning_LPIS_subset.csv")
         cropsar_df = cropsar_df.set_index(cropsar_df.columns[0])
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date

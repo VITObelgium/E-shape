@@ -43,8 +43,13 @@ def OpenSearch_metadata_retrieval(start,end, geo):
 
         ###################### DEFINE GEOMETRY OF POLGYON #######################
         #########################################################################
-        x_coord = [float(item[0]) for item in gj_poly.geometry['coordinates'][0]]
-        y_coord = [float(item[1]) for item in gj_poly.geometry['coordinates'][0]]
+        if gj_poly.geometry.type == 'Polygon':
+            x_coord = [float(item[0]) for item in gj_poly.geometry['coordinates'][0]]
+            y_coord = [float(item[1]) for item in gj_poly.geometry['coordinates'][0]]
+        elif gj_poly.geometry.type == 'MultiPolygon':
+            x_coord = [float(item[0]) for item in gj_poly.geometry['coordinates'][0][0]]
+            y_coord = [float(item[1]) for item in gj_poly.geometry['coordinates'][0][0]]
+
         field = Polygon(zip(x_coord, y_coord))
         minx, miny, maxx, maxy = field.bounds
         return minx, miny, maxx, maxy

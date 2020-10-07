@@ -137,8 +137,12 @@ class Cropcalendars():
                     pyproj.Proj(init = 'epsg:{}'.format(str(epsg_original))),
                     pyproj.Proj(init = 'epsg:{}'.format(str(epsg_utm)))
                 )
-                lat_list = [field.coordinates[0][p][1] for p in range(len(field.coordinates[0]))]
-                lon_list = [field.coordinates[0][p][0] for p in range(len(field.coordinates[0]))]
+                if field.type == 'Polgyon':
+                    lat_list = [field.coordinates[0][p][1] for p in range(len(field.coordinates[0]))]
+                    lon_list = [field.coordinates[0][p][0] for p in range(len(field.coordinates[0]))]
+                elif field.type == 'MultiPolygon':
+                    lat_list = [field.coordinates[0][0][p][1] for p in range(len(field.coordinates[0][0]))]
+                    lon_list = [field.coordinates[0][0][p][0] for p in range(len(field.coordinates[0][0]))]
                 poly_reproject = transform(project,Polygon(zip(lon_list, lat_list))).buffer(-10) # inward buffering of the polygon
                 poly_reproject_WGS = UTM_to_WGS84(epsg_utm, poly_reproject)
                 return poly_reproject_WGS
@@ -278,13 +282,28 @@ class Cropcalendars():
 
             ### Buffer the fields 10 m inwards before requesting the TS from OpenEO
             polygons_inw_buffered =  []
+            poly_too_small_buffer = []
             for field_loc in range(len(gj.features)):
-                lon = gj['features'][field_loc].geometry.coordinates[0][0][0]
-                lat = gj['features'][field_loc].geometry.coordinates[0][0][1]
+                if gj.features[0].geometry.type == 'Polygon':
+                    lon = gj['features'][field_loc].geometry.coordinates[0][0][0]
+                    lat = gj['features'][field_loc].geometry.coordinates[0][0][1]
+                elif gj.features[0].geometry.type  == 'MultiPolygon': # in case the data is stored as a multipolygon
+                    lon = gj['features'][field_loc].geometry.coordinates[0][0][0][0]
+                    lat = gj['features'][field_loc].geometry.coordinates[0][0][0][1]
                 utm_zone_nr = utm.from_latlon(lat,lon)[2]
                 epsg_UTM_field = _get_epsg(lat, utm_zone_nr)
                 poly_inw_buffered = to_utm_inw_buffered('4326', epsg_UTM_field, gj.features[field_loc].geometry)
+                if  poly_inw_buffered.is_empty:
+                    poly_too_small_buffer.append( gj['features'][field_loc].geometry)
+                    continue
                 polygons_inw_buffered.append(poly_inw_buffered)
+            def remove_small_poly(polygons, poly_too_small_buffer):
+                for poly_remove in poly_too_small_buffer:
+                        gj_reduced = [item for item in polygons.features if item.geometry != poly_remove]
+                polygons.features = gj_reduced
+                return polygons
+
+            gj = remove_small_poly(gj, poly_too_small_buffer)
 
             geo = shapely.geometry.GeometryCollection([shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
             #geo=shapely.geometry.GeometryCollection([shapely.geometry.shape(feature["geometry"]).buffer(0) for feature in gj["features"]])
@@ -355,7 +374,7 @@ class Cropcalendars():
                     crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
             else:
                 # demo datacube of VH_VV and fAPAR time series
-                with open(r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\datacube_metrics_sigma_reduced_20201005_V200_cleaning.json",'r') as ts_file:
+                with open(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\LPIS_fields_test_TS.json",'r') as ts_file:
                     ts_dict = json.load(ts_file)
                     df_metrics = timeseries_json_to_pandas(ts_dict)
                     df_metrics.index = pd.to_datetime(df_metrics.index)
@@ -368,7 +387,7 @@ class Cropcalendars():
 
                 crop_calendars_df = udf_cropcalendars_local(ts_dict, unique_ids_fields, dict_ascending_orbits_field, dict_descending_orbits_field)
             #### FINALLY ASSIGN THE CROP CALENDAR EVENTS AS PROPERTIES TO THE GEOJSON FILE WITH THE FIELDS
-            for s in range(len(gj)):
+            for s in range(len(gj.features)):
                 for c in range(crop_calendars_df.shape[1]):  # the amount of crop calendar events which were determined
                     gj.features[s].properties[crop_calendars_df.columns[c]] = \
                     crop_calendars_df.loc[crop_calendars_df.index == unique_ids_fields[s]][crop_calendars_df.columns[c]].values[0]  # the date of the event
