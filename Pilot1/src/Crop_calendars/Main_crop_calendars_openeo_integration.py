@@ -15,9 +15,9 @@ def main():
     # to be used to determine the specific crop calendar event
     gjson_path = Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
     ## define the period (year) for extracting the time series data
-    year_of_interest = 2019
-    start = '{}-01-01'.format(str(year_of_interest))
-    end = '{}-12-31'.format(str(year_of_interest))
+    #year_of_interest = 2019
+    start = '2019-01-01'
+    end = '2019-12-31'
     # the folder in which you want to store the output result
     outdir = r'S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test'
     #the name of the output file containing the crop calendar
