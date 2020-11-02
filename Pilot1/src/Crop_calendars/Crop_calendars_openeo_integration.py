@@ -1,8 +1,7 @@
 from pathlib import Path
-import geopandas as gpd
 import numpy as np
-import openeo
 import pandas as pd
+import openeo
 import scipy.signal
 import shapely
 from openeo import Job
@@ -147,7 +146,7 @@ class Cropcalendars():
                     pyproj.Proj(init = 'epsg:{}'.format(str(epsg_original))),
                     pyproj.Proj(init = 'epsg:{}'.format(str(epsg_utm)))
                 )
-                if field.type == 'Polgyon':
+                if field.type == 'Polygon':
                     lat_list = [field.coordinates[0][p][1] for p in range(len(field.coordinates[0]))]
                     lon_list = [field.coordinates[0][p][0] for p in range(len(field.coordinates[0]))]
                 elif field.type == 'MultiPolygon':
@@ -395,7 +394,7 @@ class Cropcalendars():
                 Path.unlink(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
             else:
                 # demo datacube of VH_VV and fAPAR time series
-                with open(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\LPIS_fields_test_TS_cropsar_cleaining.json",'r') as ts_file:
+                with open(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\LPIS_fields_TS_final_cleaning_cropsar.json",'r') as ts_file:
                     ts_dict = json.load(ts_file)
                     df_metrics = timeseries_json_to_pandas(ts_dict)
                     df_metrics.index = pd.to_datetime(df_metrics.index)
