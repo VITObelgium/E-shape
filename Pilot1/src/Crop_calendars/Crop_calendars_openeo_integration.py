@@ -196,7 +196,7 @@ class Cropcalendars():
             def remove_small_poly(polygons, poly_too_small_buffer):
                 for poly_remove in poly_too_small_buffer:
                     gj_reduced = [item for item in polygons.features if item.geometry != poly_remove]
-                polygons.features = gj_reduced
+                    polygons.features = gj_reduced
                 return polygons
 
             # def to find the optimal orbit
