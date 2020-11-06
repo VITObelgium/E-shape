@@ -93,14 +93,14 @@ class Cropcalendars():
 
             def get_angle(geo, start, end):
                 scale = 0.0005
-                eoconn=openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
+                eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
                 eoconn.authenticate_basic('bontek','bontek123')
                 orbit_passes = [r'ASCENDING', r'DESCENDING']
                 dict_df_angles_fields = dict()
                 for orbit_pass in orbit_passes:
                     angle = eoconn.load_collection('S1_GRD_SIGMA0_{}'.format(orbit_pass), bands = ['angle']).band('angle')
                     try:
-                        angle_fields = angle.polygonal_mean_timeseries(geo).filter_temporal(start,end).execute()
+                        angle_fields = angle.filter_temporal(start,end).polygonal_mean_timeseries(geo).execute()
                         df_angle_fields = timeseries_json_to_pandas(angle_fields)
                     except:
                         print('RUNNING IN EXECUTE MODE WAS NOT POSSIBLE ... TRY BATCH MODE')
@@ -119,7 +119,7 @@ class Cropcalendars():
                 return dict_df_angles_fields
 
             def get_bands(startdate,enddate):
-                eoconn=openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
+                eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
                 eoconn.authenticate_basic('bontek','bontek123')
 
                 S2mask= create_mask(startdate, enddate, eoconn)
@@ -346,7 +346,6 @@ class Cropcalendars():
             gj = remove_small_poly(gj, poly_too_small_buffer)
 
             geo = shapely.geometry.GeometryCollection([shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
-            #geo=shapely.geometry.GeometryCollection([shapely.geometry.shape(feature["geometry"]).buffer(0) for feature in gj["features"]])
 
             # get some info on the indicence angle covering the fields
             angle_fields = get_angle(geo, start, end)
