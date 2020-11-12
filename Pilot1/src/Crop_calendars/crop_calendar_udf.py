@@ -166,6 +166,8 @@ def udf_cropcalendars(udf_data:UdfData):
     context_param_var = udf_data.user_context
     print(context_param_var)
     ts_dict = udf_data.get_structured_data_list()[0].data
+    if not ts_dict: #workaround of ts_dict is empty
+        return
     ts_df = timeseries_json_to_pandas(ts_dict)
     ts_df.index = pd.to_datetime(ts_df.index).date
 
