@@ -22,6 +22,7 @@ from cropsar.preprocessing.cloud_mask_openeo import create_mask
 import geojson
 import uuid
 import json
+from openeo.rest.datacube import DataCube
 
 # General approach:
 #
@@ -94,6 +95,7 @@ class Cropcalendars():
             def get_angle(geo, start, end):
                 scale = 0.0005
                 eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
+                #eoconn = openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
                 eoconn.authenticate_basic('bontek','bontek123')
                 orbit_passes = [r'ASCENDING', r'DESCENDING']
                 dict_df_angles_fields = dict()
@@ -120,6 +122,7 @@ class Cropcalendars():
 
             def get_bands(startdate,enddate):
                 eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
+                #eoconn = openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
                 eoconn.authenticate_basic('bontek','bontek123')
 
                 S2mask= create_mask(startdate, enddate, eoconn)
@@ -143,8 +146,8 @@ class Cropcalendars():
             def to_utm_inw_buffered(epsg_original, epsg_utm, field):
                 project = partial(
                     pyproj.transform,
-                    pyproj.Proj(init = 'epsg:{}'.format(str(epsg_original))),
-                    pyproj.Proj(init = 'epsg:{}'.format(str(epsg_utm)))
+                    pyproj.Proj('epsg:{}'.format(str(epsg_original))),
+                    pyproj.Proj('epsg:{}'.format(str(epsg_utm)))
                 )
                 if field.type == 'Polygon':
                     lat_list = [field.coordinates[0][p][1] for p in range(len(field.coordinates[0]))]
@@ -158,8 +161,8 @@ class Cropcalendars():
             def UTM_to_WGS84(epsg_utm, field):
                 project = partial(
                     pyproj.transform,
-                    pyproj.Proj(init='epsg:{}'.format(str(epsg_utm))),
-                    pyproj.Proj(init='epsg:{}'.format(str(4326)))
+                    pyproj.Proj('epsg:{}'.format(str(epsg_utm))),
+                    pyproj.Proj('epsg:{}'.format(str(4326)))
                 )
 
                 poly_WGS84 = transform(project, field)
@@ -374,7 +377,8 @@ class Cropcalendars():
             udf = self.load_udf('crop_calendar_udf.py')
 
             run_local = False
-            if not run_local:
+            run_local_udf = False
+            if not run_local and not run_local_udf:
                 # Default parameters are ingested in the UDF
                 context_to_udf = dict({'window_values': window_values, 'thr_detection': thr_detection, 'crop_calendar_event': crop_calendar_event,
                                        'metrics_crop_event': metrics_crop_event, 'VH_VV_range_normalization': self.VH_VV_range_normalization,
@@ -391,6 +395,12 @@ class Cropcalendars():
                     crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
                 # remove this temporary stored file
                 Path.unlink(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
+            elif run_local_udf:
+                #timeseries.download(r'S:\Nextland\BDB\Products\Phenology\Harvest_date\2016\datacube_test.json')
+                from openeo.rest.conversions import datacube_from_file
+                DataCube.execute_local_udf(udf, r'S:\Nextland\BDB\Products\Phenology\Harvest_date\2016\datacube_test.nc', fmt = 'netcdf')
+
+
             else:
                 # demo datacube of VH_VV and fAPAR time series
                 with open(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\LPIS_fields_TS_final_cleaning_cropsar.json",'r') as ts_file:
