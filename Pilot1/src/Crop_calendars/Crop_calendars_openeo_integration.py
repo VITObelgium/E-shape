@@ -10,14 +10,15 @@ import ee
 import os
 import statistics
 import collections
-from Pilot1.src.Crop_calendars.Terrascope_catalogue_retrieval import OpenSearch_metadata_retrieval
+from Pilot1.src.Crop_calendars.Terrascope_catalogue_retrieval import OpenSearch
 from functools import partial
 import pyproj
 from shapely.ops import transform
 from shapely.geometry.polygon import Polygon
 import utm
 import shutil
-from cropsar.preprocessing.cloud_mask_openeo import create_mask
+# from cropsar.preprocessing.cloud_mask_openeo import create_mask
+from Crop_calendars.create_mask import create_mask
 
 import geojson
 import uuid
@@ -42,6 +43,13 @@ class Cropcalendars():
         self.VH_VV_range_normalization = VH_VV_range_normalization
         self.fAPAR_range_normalization  = fAPAR_range_normalization
         self.metrics_order = metrics_order
+
+        # openeo connection
+        self._eoconn = openeo\
+            .connect('https://openeo-dev.vito.be/openeo/1.0.0')\
+            .authenticate_basic('bontek', 'bontek123')
+        self._open_search = OpenSearch()
+
     #####################################################
     ################# FUNCTIONS #########################
     #####################################################
@@ -94,17 +102,14 @@ class Cropcalendars():
 
             def get_angle(geo, start, end):
                 scale = 0.0005
-                eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
-                #eoconn = openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
-                eoconn.authenticate_basic('bontek','bontek123')
                 orbit_passes = [r'ASCENDING', r'DESCENDING']
                 dict_df_angles_fields = dict()
                 for orbit_pass in orbit_passes:
-                    angle = eoconn.load_collection('S1_GRD_SIGMA0_{}'.format(orbit_pass), bands = ['angle']).band('angle')
+                    angle = self._eoconn.load_collection('S1_GRD_SIGMA0_{}'.format(orbit_pass), bands = ['angle']).band('angle')
                     try:
-                        angle_fields = angle.filter_temporal(start,end).polygonal_mean_timeseries(geo).execute()
+                        angle_fields = angle.filter_temporal(start,end).polygonal_mean_timeseries(geo).send_job().start_and_wait().get_result().load_json()
                         df_angle_fields = timeseries_json_to_pandas(angle_fields)
-                    except:
+                    except Exception:
                         print('RUNNING IN EXECUTE MODE WAS NOT POSSIBLE ... TRY BATCH MODE')
                         angle.polygonal_mean_timeseries(geo).filter_temporal(start, end).execute_batch('angle_{}.json'.format(orbit_pass))
                         with open('angle_{}.json'.format(orbit_pass), 'r') as angle_file:
@@ -121,18 +126,14 @@ class Cropcalendars():
                 return dict_df_angles_fields
 
             def get_bands(startdate,enddate):
-                eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
-                #eoconn = openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
-                eoconn.authenticate_basic('bontek','bontek123')
-
-                S2mask= create_mask(startdate, enddate, eoconn)
-                fapar = eoconn.load_collection('TERRASCOPE_S2_FAPAR_V2', bands = ['FAPAR_10M'])
+                S2mask= create_mask(startdate, enddate, self._eoconn)
+                fapar = self._eoconn.load_collection('TERRASCOPE_S2_FAPAR_V2', bands = ['FAPAR_10M'])
 
                 fapar_masked=fapar.mask(S2mask)
 
                 #gamma0=eoconn.load_collection('TERRASCOPE_S1_GAMMA0_V1')
-                sigma_ascending = eoconn.load_collection('S1_GRD_SIGMA0_ASCENDING', bands  = ["VH", "VV", "angle"])
-                sigma_descending = eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING', bands  = ["VH", "VV", "angle"]).resample_cube_spatial(sigma_ascending)
+                sigma_ascending = self._eoconn.load_collection('S1_GRD_SIGMA0_ASCENDING', bands  = ["VH", "VV", "angle"])
+                sigma_descending = self._eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING', bands  = ["VH", "VV", "angle"]).resample_cube_spatial(sigma_ascending)
 
                 fapar_masked = fapar_masked.resample_cube_spatial(sigma_ascending)
 
@@ -219,8 +220,8 @@ class Cropcalendars():
                 return dict_metadata_RO_selection, RO_orbit_selection
             def Opensearch_OpenEO_RO_selection(angle_fields,gj,orbit_passes, s):
                 # get some info on the RO intersecting the fields by using the Opensearch for filtering data in Terrascope
+                dict_descending_orbits_field, dict_ascending_orbits_field = self._open_search.OpenSearch_metadata_retrieval(start, end, gj.features[s])
                 for orbit_pass in orbit_passes:
-                    dict_descending_orbits_field, dict_ascending_orbits_field = OpenSearch_metadata_retrieval(start,end,gj.features[s])
                     if orbit_pass == 'ASCENDING':
                         df_RO_pass = pd.DataFrame(data = dict_ascending_orbits_field.values(), columns = (['RO']), index = dict_ascending_orbits_field.keys())
                     else:
@@ -387,14 +388,9 @@ class Cropcalendars():
                                        'RO_ascending_selection_per_field': dict_ascending_orbits_field, 'RO_descending_selection_per_field': dict_descending_orbits_field,
                                        'unique_ids_fields': unique_ids_fields, 'index_window_above_thr': index_window_above_thr,
                                        'metrics_order': self.metrics_order, 'path_harvest_model': self.path_harvest_model})
-                job_result:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).execute_batch(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
-                #out_location =  "crop_calendar_field_test_index_window.json" #r'C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\cropcalendar.json'
-                #job_result.download_results(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
-                with open(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"),'r') as calendar_file:
-                    crop_calendars = json.load(calendar_file)
-                    crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
-                # remove this temporary stored file
-                Path.unlink(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
+                job:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).send_job()
+                crop_calendars = job.start_and_wait().get_result().load_json()
+                crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
             elif run_local_udf:
                 #timeseries.download(r'S:\Nextland\BDB\Products\Phenology\Harvest_date\2016\datacube_test.json')
                 from openeo.rest.conversions import datacube_from_file
