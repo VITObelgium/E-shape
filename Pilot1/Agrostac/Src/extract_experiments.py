@@ -1,10 +1,10 @@
 # coding: latin-1
 from __future__ import division
-#from __builtin__ import True
-#import clr
-#clr.AddReference("Microsoft.Office.Interop.Excel")
-#import Microsoft.Office.Interop.Excel as Excel
-#from System.Reflection import Assembly
+# from __builtin__ import True
+# import clr
+# clr.AddReference("Microsoft.Office.Interop.Excel")
+# import Microsoft.Office.Interop.Excel as Excel
+# from System.Reflection import Assembly
 import os.path, sys
 import codecs
 import datetime as dt
@@ -13,13 +13,15 @@ from copy import deepcopy
 from Pilot1.Agrostac.Src.country_bbox import latlon_in_bbox
 import pandas as pd
 import geopandas as gpd
+import numpy as np
 
 __author__ = "Steven B. Hoek"
 
 # Define constants
-name = "WIG_2018"
+name = "cropCalendars2018Komotini_Greece"
 provider_code = "UNKNOWN"
 NA = -2146826246
+
 
 # Prepare to load management info
 # PATH_TO_DLL = os.path.abspath("..\\..\\Utils\\Assemblies")
@@ -49,7 +51,8 @@ def get_date_tuple(value):
     else:
         # Assume a figure
         d = dt.date(1899, 12, 30) + dt.timedelta(days=int(value))
-        return (d.year, d.month, d.day) 
+        return (d.year, d.month, d.day)
+
 
 def get_mgmt_info(acode, anumber):
     result = []
@@ -57,6 +60,7 @@ def get_mgmt_info(acode, anumber):
         result = filter(lambda v: (v["Code"] == acode) and (v["Treatment"] == str(anumber)), mgmt_info)
     finally:
         return result
+
 
 def translate_mgmt_info(aletter):
     result = "UNKNOWN"
@@ -67,21 +71,22 @@ def translate_mgmt_info(aletter):
                    "O": "OPTIMAL",
                    "X": "EXCESSIVE",
                    "U": "UNKNOWN"
-                  }
+                   }
         result = options[aletter]
     finally:
         return result
 
+
 def main():
     # Initialise variables indicating paths etc.
-    curdir = r'S:\eshape\Pilot 1\data\WIG_data'
+    curdir = r'S:\eshape\Pilot 1\data\Parcels_greece'
     datapath = os.path.join(curdir)
     datapath = os.path.normpath(datapath)
     outdatapath = os.path.normpath(r'S:\eshape\Pilot 1\Agrostac\SIF_files')
-    fn0 = os.path.realpath(os.path.join(datapath, "2018_WIG_planting_harvest_dates.shp"))
-    fn1 = os.path.join(outdatapath, "2018_WIG_planting_harvest_dates.sif")
+    fn0 = os.path.realpath(os.path.join(datapath, "cropCalendars2018Komotini_cropcalendars.xlsx"))
+    fn1 = os.path.join(outdatapath, "cropCalendars2018Komotini_cropcalendars.sif")
     fout = None
-    
+
     # Initialise Excel
     # global excel
     # excel = Excel.ApplicationClass()
@@ -93,17 +98,19 @@ def main():
     # in terms of experiment name or "exname" and treatment number. The latter is indicated by % or #. The script should improved,
     # so that any inconsistency is detected immediately or is not even dependent on the mentioned correspondence anymore.
     try:
-        # Open the Excel file 
-        if (not os.path.exists(fn0)) or (not os.path.isfile(fn0)): 
+        # Open the Excel file
+        if (not os.path.exists(fn0)) or (not os.path.isfile(fn0)):
             raise IOError("File %s does not exist" % fn0)
         else:
-            print ("Opening file " + fn0)
-        wb = pd.DataFrame(gpd.read_file(fn0))#excel.Workbooks.Open(fn0)
+            print("Opening file " + fn0)
+        try:
+            wb = pd.DataFrame(gpd.read_file(fn0))  # excel.Workbooks.Open(fn0)
+        except:
+            wb = pd.read_excel(fn0)
         # ws1 = wb.Worksheets[1] # metadata
         # ws6 = wb.Worksheets[6] # management events
         # ws9 = wb.Worksheets[9] # observed data summary
 
-        
         # # Read worksheet 10 into a structure which we can query
         # ws10 = wb.Worksheets[10] # observed data time series
         # observed_timeseries = ObservedTimeSeries()
@@ -143,7 +150,7 @@ def main():
         fout = codecs.open(fn1, mode='w', encoding="utf-8")
         s = "// Deze file moet met Merge geladen worden omdat de tijdseries voor dezelfde locatie over verschillende secties verdeeld zijn"
         fout.write(s + "\n\n")
-        
+
         # # After the header row, there are 216 rows with data in the first worksheet
         # for i in range(2, 218):
         #     try:
@@ -162,46 +169,82 @@ def main():
         #         tmp = rng.Value2[0, 15]
         #         if tmp != NA: altitude = tmp
         for i in range(wb.shape[0]):
+            print('CONVERTED FIELD {} OUT OF {} TO SIF FILE'.format(str(i), str(wb.shape[0])))
             try:
-                exname = wb.iloc[i,:]['id']
-                treatment = str(wb.iloc[i,:]['treatments'])
+                exname = wb.iloc[i, :]['id']
+                try:
+                    treatment = str(wb.iloc[i, :]['treatments'])
+                except:
+                    treatment = "UNKNOWN"
                 organisation = 'VITO'
-                country = 'Belgium'
-                location = wb.iloc[i,:]['community']
-                longitude =  wb.iloc[i,:].geometry.centroid.bounds[0]
-                latitude = wb.iloc[i,:].geometry.centroid.bounds[1]
-                
+                country = 'Greece'
+                if country == 'Greece':
+                    shp_fields_Greece = gpd.read_file(
+                        r"S:\eshape\Pilot 1\data\Parcels_greece\35TLF_2018_parcel_ids_greece.shp")
+                    shp_fields_Greece_id = shp_fields_Greece.loc[shp_fields_Greece.id == exname]
+                try:
+                    location = wb.iloc[i, :]['community']
+                except:
+                    location = 'UNKNOWN'
+
+                if not country == 'Greece':
+                    longitude = wb.iloc[i, :].geometry.centroid.bounds[0]
+                    latitude = wb.iloc[i, :].geometry.centroid.bounds[1]
+                else:
+                    longitude = shp_fields_Greece_id.geometry.values[0].centroid.bounds[0]
+                    latitude = shp_fields_Greece_id.geometry.values[0].centroid.bounds[1]
+
                 # Specify some general properties
-                trial = Trial(exname + '/' + treatment)
-                trial.crop = wb.iloc[i,:]['croptype']
-                trial.cultivar =  wb.iloc[i,:]['variety']
+                if treatment == 'UNKNOWN':
+                    trial = Trial(exname)
+                else:
+                    trial = Trial(exname + '/' + treatment)
+
+                if not country == "Greece":
+                    trial.crop = wb.iloc[i, :]['croptype']
+                else:
+                    trial.crop = 'cotton'
+                try:
+                    trial.cultivar = wb.iloc[i, :]['variety']
+                except:
+                    trial.cultivar = "UNKNOWN"
                 trial.name = name + "/"
                 trial.country = country
                 trial.region = location
-                trial.site = wb.iloc[i,:]['id']
+                trial.site = str(wb.iloc[i, :]['id'])
                 trial.organisation = organisation
-                trial.provider = provider_code 
+                trial.provider = provider_code
                 trial.lon = longitude
                 trial.lat = latitude
-                #trial.alt = altitude
+                # trial.alt = altitude
                 if not latlon_in_bbox((float(trial.lat), float(trial.lon)), trial.country):
                     raise ValueError("Inconsistent input")
 
                 trial.events = []
 
                 ### add some info on the observed phenology to the sif file
-                datepl_planting =  wb.iloc[i,:]['planting_d']
-                if datepl_planting != None:
+                if not country == "Greece":
+                    datepl_planting = wb.iloc[i, :]['planting_d']
+                else:
+                    datepl_planting = wb.iloc[i, :]['Planting_date']
+                if datepl_planting != None and not pd.isnull(datepl_planting):
                     datepl_planting = get_date_tuple(datepl_planting)
-                    plantingdate = dt.date(int(datepl_planting[0]), int(datepl_planting[1]), int(datepl_planting[2][0:2]))
-                    trial.events.append(Event(plantingdate,"CROP_DEV_BBCH", "00"))
+                    plantingdate = dt.date(int(datepl_planting[0]), int(datepl_planting[1]),
+                                           int(datepl_planting[2][0:2]))
+                    trial.events.append(Event(plantingdate, "CROP_DEV_BBCH", "00"))
 
                 datepl_harvest = wb.iloc[i, :]['harvest_da']
-                if datepl_harvest != None:
+                if datepl_harvest != None and not pd.isnull(datepl_harvest):
                     datepl_harvest = get_date_tuple(datepl_harvest)
                     harvestdate = dt.date(int(datepl_harvest[0]), int(datepl_harvest[1]), int(datepl_harvest[2][0:2]))
                     trial.events.append(Event(harvestdate, "CROP_DEV_BBCH", "99"))
-
+                if country == 'Greece':
+                    datepl_emergence = wb.iloc[i, :]['Emergence_date']
+                    if datepl_emergence != None and not pd.isnull(datepl_emergence):
+                        datepl_emergence = get_date_tuple(datepl_emergence)
+                        emergencedate = dt.date(int(datepl_emergence[0]), int(datepl_emergence[1]),
+                                                int(datepl_emergence[2][0:2]))
+                        trial.events.append(Event(emergencedate, 'CROP_DEV_BBCH', '9'))
 
                 # # Add information from the CSV file
                 # if len(mgmt_info) == 0: print("No management info found!")
@@ -304,11 +347,11 @@ def main():
                 # recs = filter(lambda x: x['code'] == exname, objectives)
                 # if len(recs) > 0:
                 #     trial.objective = "'" + recs[0]['objective'] + "'"
-                
-                # Now write the trial with all its events                
+
+                # Now write the trial with all its events
                 fout.write(str(trial))
                 fout.flush()
-                
+
                 '''
                 # Now loop over the data
                 for row in reader:
@@ -318,12 +361,12 @@ def main():
                     startdate = dt.date(int(row["Year"]), 2, 1) + dt.timedelta(int(row['Onset']))
                     trial.events.append(Event(startdate, 'CROP_DEV_BBCH', '00'))
                     harvest_date = dt.date(int(row["Year"]), 7, 31)
-                    
+
                     # Prepare to write output for 3 additional treatments
                     trial0 = deepcopy(trial)
                     trial1 = deepcopy(trial)
                     trial2 = deepcopy(trial)
-                    
+
                     # Output the data wrt. the control replication
                     trial0.id = "Nofert"
                     trial0.nutrients_mgmt_type = "NOT" 
@@ -335,17 +378,17 @@ def main():
                     trial0.events.append(evt)          
                     if len(trial0.events) > 0:
                         fout.write(str(trial0))
-                '''                                            
-    
-            
-            # print "Data for %s trials were written to file %s" % (i, fout.name)
+                '''
+
+                # print "Data for %s trials were written to file %s" % (i, fout.name)
             except Exception as e:
-                print ("Unable to write data to file for trial found on line %s" % i)
-                print (str(e))
+                print("Unable to write data to file for trial found on line %s" % i)
+                print(str(e))
     finally:
         if fout != None:
             fout.flush()
             fout.close()
-            
+
+
 if __name__ == "__main__":
     main()
