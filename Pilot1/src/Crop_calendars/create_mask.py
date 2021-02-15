@@ -2,7 +2,7 @@ import numpy as np
 import scipy
 
 
-def create_mask(start, end, session):
+def create_mask(session):
     s2_sceneclassification = session.imagecollection("TERRASCOPE_S2_TOC_V2", bands=["SCENECLASSIFICATION_20M"])
 
     classification = s2_sceneclassification.band('SCENECLASSIFICATION_20M')
@@ -26,5 +26,4 @@ def create_mask(start, end, session):
     second_mask = second_mask.apply_kernel(makekernel(161)) # bigger kernel for cloud pixels to remove from a larger area pixels
     second_mask = second_mask > 0.1
 
-    # TODO: the use of filter_temporal is a trick to make cube merging work, needs to be fixed in openeo client
-    return first_mask.filter_temporal(start, end) | second_mask.filter_temporal(start, end)
+    return first_mask | second_mask
