@@ -300,9 +300,9 @@ class Cropcalendars():
             #     dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
 
 
-            gj = self.load_geometry(gjson_path)
+            gj, polygons_inw_buffered = self.load_geometry(gjson_path)
             geo = shapely.geometry.GeometryCollection(
-                [shapely.geometry.shape(feature).buffer(0) for feature in gj])
+                [shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
 
             # get some info on the indicence angle covering the fields
             angle_fields = get_angle(geo, start, end)
@@ -323,7 +323,7 @@ class Cropcalendars():
                 dict_descending_orbits_field.update({gj.features[s].properties['id']: RO_descending_selection})
 
             # get the datacube containing the time series data
-            bands_ts = self.get_bands(start,end)
+            bands_ts = self.get_bands()
 
 
             ##### POST PROCESSING TIMESERIES USING A UDF
