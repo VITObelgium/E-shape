@@ -1,8 +1,8 @@
 import numpy as np
-import openeo
+# import openeo
 import pandas as pd
-import scipy.signal
-import shapely
+# import scipy.signal
+# import shapely
 from openeo.rest.conversions import timeseries_json_to_pandas
 from openeo_udf.api.udf_data import UdfData
 from openeo_udf.api.structured_data import StructuredData
@@ -10,9 +10,9 @@ from cropsar.preprocessing.retrieve_timeseries_openeo import run_cropsar_datafra
 
 
 from tensorflow.keras.models import load_model
-import geojson
-import uuid
-import json
+# import geojson
+# import uuid
+# import json
 
 ######## FUNCTIONS ################
 def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo, Spark = True):

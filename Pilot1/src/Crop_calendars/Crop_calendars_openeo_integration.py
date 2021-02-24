@@ -6,18 +6,18 @@ import scipy.signal
 import shapely
 from openeo import Job
 from openeo.rest.conversions import timeseries_json_to_pandas
-import ee
+
 import os
 import statistics
 import collections
-from Pilot1.src.Crop_calendars.Terrascope_catalogue_retrieval import OpenSearch_metadata_retrieval
-from functools import partial
-import pyproj
-from shapely.ops import transform
+from Crop_calendars.Terrascope_catalogue_retrieval import OpenSearch
+
 from shapely.geometry.polygon import Polygon
-import utm
+
 import shutil
-from cropsar.preprocessing.cloud_mask_openeo import create_mask
+# from cropsar.preprocessing.cloud_mask_openeo import create_mask
+from Crop_calendars.create_mask import create_mask
+from Crop_calendars.prepare_geometry import prepare_geometry,remove_small_poly
 
 import geojson
 import uuid
@@ -34,7 +34,7 @@ from openeo.rest.datacube import DataCube
 #   return cropcalendar output in your own json format
 
 class Cropcalendars():
-    def __init__(self, fAPAR_rescale_Openeo, coherence_rescale_Openeo, path_harvest_model,VH_VV_range_normalization, fAPAR_range_normalization, metrics_order):
+    def __init__(self, fAPAR_rescale_Openeo, coherence_rescale_Openeo, path_harvest_model,VH_VV_range_normalization, fAPAR_range_normalization, metrics_order, connection = None):
         # crop calendar independant variables
         self.fAPAR_rescale_Openeo = fAPAR_rescale_Openeo
         self.coherence_rescale_Openeo = coherence_rescale_Openeo
@@ -42,6 +42,17 @@ class Cropcalendars():
         self.VH_VV_range_normalization = VH_VV_range_normalization
         self.fAPAR_range_normalization  = fAPAR_range_normalization
         self.metrics_order = metrics_order
+
+        # openeo connection
+        if(connection == None):
+
+            self._eoconn = openeo\
+                .connect('https://openeo-dev.vito.be/openeo/1.0.0')\
+                .authenticate_basic('bontek', 'bontek123')
+        else:
+            self._eoconn = connection
+        self._open_search = OpenSearch()
+
     #####################################################
     ################# FUNCTIONS #########################
     #####################################################
@@ -52,6 +63,38 @@ class Cropcalendars():
     def load_udf(self, relative_path):
         with open(self.get_resource(relative_path), 'r+', encoding="utf8") as f:
             return f.read()
+
+    def get_bands(self):
+        S2mask = create_mask( self._eoconn)
+        fapar = self._eoconn.load_collection('TERRASCOPE_S2_FAPAR_V2', bands=['FAPAR_10M'])
+
+        fapar_masked = fapar.mask(S2mask)
+
+        # gamma0=eoconn.load_collection('TERRASCOPE_S1_GAMMA0_V1')
+        sigma_ascending = self._eoconn.load_collection('S1_GRD_SIGMA0_ASCENDING', bands=["VH", "VV", "angle"])
+        sigma_descending = self._eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING',
+                                                        bands=["VH", "VV", "angle"]).resample_cube_spatial(
+            sigma_ascending)
+
+        fapar_masked = fapar_masked.resample_cube_spatial(sigma_ascending)
+
+        # coherence=eoconn.load_collection('TERRASCOPE_S1_SLC_COHERENCE_V1')
+
+        all_bands = sigma_ascending.merge(sigma_descending).merge(fapar_masked)  # .merge(coherence)
+        return all_bands
+
+    @classmethod
+    def load_geometry(cls, gjson_path):
+        # LOAD THE FIELDS FOR WHICH THE TIMESERIES
+        # SHOULD BE EXTRACTED FOR THE CROP CALENDARS
+        with open(gjson_path) as f:
+            gj = geojson.load(f)
+        ### Buffer the fields 10 m inwards before requesting the TS from OpenEO
+        polygons_inw_buffered, poly_too_small_buffer = prepare_geometry(gj)
+        #TODO this is a bit confusing: I woud expect to continue with polygons_inw_buffered here
+        gj = remove_small_poly(gj, poly_too_small_buffer)
+
+        return gj,polygons_inw_buffered
 
     def generate_cropcalendars(self, start, end, gjson_path, window_values, thr_detection, crop_calendar_event, metrics_crop_event, index_window_above_thr):
             ##### FUNCTION TO BUILD A DATACUBE IN OPENEO
@@ -94,17 +137,14 @@ class Cropcalendars():
 
             def get_angle(geo, start, end):
                 scale = 0.0005
-                eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
-                #eoconn = openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
-                eoconn.authenticate_basic('bontek','bontek123')
                 orbit_passes = [r'ASCENDING', r'DESCENDING']
                 dict_df_angles_fields = dict()
                 for orbit_pass in orbit_passes:
-                    angle = eoconn.load_collection('S1_GRD_SIGMA0_{}'.format(orbit_pass), bands = ['angle']).band('angle')
+                    angle = self._eoconn.load_collection('S1_GRD_SIGMA0_{}'.format(orbit_pass), bands = ['angle']).band('angle')
                     try:
-                        angle_fields = angle.filter_temporal(start,end).polygonal_mean_timeseries(geo).execute()
+                        angle_fields = angle.filter_temporal(start,end).polygonal_mean_timeseries(geo).send_job().start_and_wait().get_result().load_json()
                         df_angle_fields = timeseries_json_to_pandas(angle_fields)
-                    except:
+                    except Exception:
                         print('RUNNING IN EXECUTE MODE WAS NOT POSSIBLE ... TRY BATCH MODE')
                         angle.polygonal_mean_timeseries(geo).filter_temporal(start, end).execute_batch('angle_{}.json'.format(orbit_pass))
                         with open('angle_{}.json'.format(orbit_pass), 'r') as angle_file:
@@ -120,87 +160,6 @@ class Cropcalendars():
                     dict_df_angles_fields.update({'{}'.format(orbit_pass): df_angle_fields})
                 return dict_df_angles_fields
 
-            def get_bands(startdate,enddate):
-                eoconn=openeo.connect('https://openeo.vito.be/openeo/1.0/')
-                #eoconn = openeo.connect('http://openeo-dev.vgt.vito.be/openeo/1.0.0/')
-                eoconn.authenticate_basic('bontek','bontek123')
-
-                S2mask= create_mask(startdate, enddate, eoconn)
-                fapar = eoconn.load_collection('TERRASCOPE_S2_FAPAR_V2', bands = ['FAPAR_10M'])
-
-                fapar_masked=fapar.mask(S2mask)
-
-                #gamma0=eoconn.load_collection('TERRASCOPE_S1_GAMMA0_V1')
-                sigma_ascending = eoconn.load_collection('S1_GRD_SIGMA0_ASCENDING', bands  = ["VH", "VV", "angle"])
-                sigma_descending = eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING', bands  = ["VH", "VV", "angle"]).resample_cube_spatial(sigma_ascending)
-
-                fapar_masked = fapar_masked.resample_cube_spatial(sigma_ascending)
-
-                #coherence=eoconn.load_collection('TERRASCOPE_S1_SLC_COHERENCE_V1')
-
-                all_bands = sigma_ascending.merge(sigma_descending).merge(fapar_masked)#.merge(coherence)
-                return all_bands
-
-            # function to convert the field to UTM projection
-            # and apply an inward buffer of 10 m
-            def to_utm_inw_buffered(epsg_original, epsg_utm, field):
-                project = partial(
-                    pyproj.transform,
-                    pyproj.Proj('epsg:{}'.format(str(epsg_original))),
-                    pyproj.Proj('epsg:{}'.format(str(epsg_utm)))
-                )
-                if field.type == 'Polygon':
-                    lat_list = [field.coordinates[0][p][1] for p in range(len(field.coordinates[0]))]
-                    lon_list = [field.coordinates[0][p][0] for p in range(len(field.coordinates[0]))]
-                elif field.type == 'MultiPolygon':
-                    lat_list = [field.coordinates[0][0][p][1] for p in range(len(field.coordinates[0][0]))]
-                    lon_list = [field.coordinates[0][0][p][0] for p in range(len(field.coordinates[0][0]))]
-                poly_reproject = transform(project,Polygon(zip(lon_list, lat_list))).buffer(-10, cap_style = 1, join_style = 2, resolution  = 4) # inward buffering of the polygon
-                poly_reproject_WGS = UTM_to_WGS84(epsg_utm, poly_reproject)
-                return poly_reproject_WGS
-            def UTM_to_WGS84(epsg_utm, field):
-                project = partial(
-                    pyproj.transform,
-                    pyproj.Proj('epsg:{}'.format(str(epsg_utm))),
-                    pyproj.Proj('epsg:{}'.format(str(4326)))
-                )
-
-                poly_WGS84 = transform(project, field)
-                return poly_WGS84
-
-            # function to get the epsg of the UTM zone
-            def _get_epsg(lat, zone_nr):
-                if lat >= 0:
-                    epsg_code = '326' + str(zone_nr)
-                else:
-                    epsg_code = '327' + str(zone_nr)
-                return int(epsg_code)
-            # function that prepares the geometry of the fields so
-            # that they are suitable for applying the crop calendar model
-            def prepare_geometry(gj):
-                polygons_inw_buffered = []
-                poly_too_small_buffer = []
-                for field_loc in range(len(gj.features)):
-                    if gj.features[0].geometry.type == 'Polygon':
-                        lon = gj['features'][field_loc].geometry.coordinates[0][0][0]
-                        lat = gj['features'][field_loc].geometry.coordinates[0][0][1]
-                    elif gj.features[0].geometry.type == 'MultiPolygon':  # in case the data is stored as a multipolygon
-                        lon = gj['features'][field_loc].geometry.coordinates[0][0][0][0]
-                        lat = gj['features'][field_loc].geometry.coordinates[0][0][0][1]
-                    utm_zone_nr = utm.from_latlon(lat, lon)[2]
-                    epsg_UTM_field = _get_epsg(lat, utm_zone_nr)
-                    poly_inw_buffered = to_utm_inw_buffered('4326', epsg_UTM_field, gj.features[field_loc].geometry)
-                    if poly_inw_buffered.is_empty:
-                        poly_too_small_buffer.append(gj['features'][field_loc].geometry)
-                        continue
-                    polygons_inw_buffered.append(poly_inw_buffered)
-                return polygons_inw_buffered, poly_too_small_buffer
-
-            def remove_small_poly(polygons, poly_too_small_buffer):
-                for poly_remove in poly_too_small_buffer:
-                    gj_reduced = [item for item in polygons.features if item.geometry != poly_remove]
-                    polygons.features = gj_reduced
-                return polygons
 
             # def to find the optimal orbit
 
@@ -219,8 +178,8 @@ class Cropcalendars():
                 return dict_metadata_RO_selection, RO_orbit_selection
             def Opensearch_OpenEO_RO_selection(angle_fields,gj,orbit_passes, s):
                 # get some info on the RO intersecting the fields by using the Opensearch for filtering data in Terrascope
+                dict_descending_orbits_field, dict_ascending_orbits_field = self._open_search.OpenSearch_metadata_retrieval(start, end, gj.features[s])
                 for orbit_pass in orbit_passes:
-                    dict_descending_orbits_field, dict_ascending_orbits_field = OpenSearch_metadata_retrieval(start,end,gj.features[s])
                     if orbit_pass == 'ASCENDING':
                         df_RO_pass = pd.DataFrame(data = dict_ascending_orbits_field.values(), columns = (['RO']), index = dict_ascending_orbits_field.keys())
                     else:
@@ -247,6 +206,7 @@ class Cropcalendars():
                 return dict_metadata_ascending_RO_selection, dict_metadata_descending_RO_selection
 
             def GEE_RO_retrieval(gj, i):
+                import ee
                 #### GEE part to find the available RO per orbit pass
                 if i == 0:
                     ee.Initialize()
@@ -328,11 +288,6 @@ class Cropcalendars():
             ###################### MAIN SCRIPT ############################
             ###############################################################
 
-            #LOAD THE FIELDS FOR WHICH THE TIMESERIES
-            #SHOULD BE EXTRACTED FOR THE CROP CALENDARS
-            with open(gjson_path) as f: gj = geojson.load(f)
-
-
 
 
             ### Not used: Script to find the best orbits (ascending + descending) based on GEE
@@ -344,11 +299,10 @@ class Cropcalendars():
             #     dict_ascending_orbits_field.update({gj.features[i].properties['id']: RO_ascending_selection})
             #     dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
 
-            ### Buffer the fields 10 m inwards before requesting the TS from OpenEO
-            polygons_inw_buffered, poly_too_small_buffer = prepare_geometry(gj)
-            gj = remove_small_poly(gj, poly_too_small_buffer)
 
-            geo = shapely.geometry.GeometryCollection([shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
+            gj, polygons_inw_buffered = self.load_geometry(gjson_path)
+            geo = shapely.geometry.GeometryCollection(
+                [shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
 
             # get some info on the indicence angle covering the fields
             angle_fields = get_angle(geo, start, end)
@@ -369,7 +323,7 @@ class Cropcalendars():
                 dict_descending_orbits_field.update({gj.features[s].properties['id']: RO_descending_selection})
 
             # get the datacube containing the time series data
-            bands_ts = get_bands(start,end)
+            bands_ts = self.get_bands()
 
 
             ##### POST PROCESSING TIMESERIES USING A UDF
@@ -387,15 +341,17 @@ class Cropcalendars():
                                        'RO_ascending_selection_per_field': dict_ascending_orbits_field, 'RO_descending_selection_per_field': dict_descending_orbits_field,
                                        'unique_ids_fields': unique_ids_fields, 'index_window_above_thr': index_window_above_thr,
                                        'metrics_order': self.metrics_order, 'path_harvest_model': self.path_harvest_model})
-                job_result:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).execute_batch(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
-                #out_location =  "crop_calendar_field_test_index_window.json" #r'C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\EX_files\cropcalendar.json'
-                #job_result.download_results(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
-                with open(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"),'r') as calendar_file:
-                    crop_calendars = json.load(calendar_file)
-                    crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
-                # remove this temporary stored file
-                Path.unlink(Path("../../Tests/Cropcalendars/Output/crop_calendar_field_test_index_window.json"))
+                job:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).send_job()
+                crop_calendars = job.start_and_wait().get_result().load_json()
+                crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
             elif run_local_udf:
+                # from Crop_calendars.crop_calendar_udf import udf_cropcalendars
+                # from openeo_udf.api.udf_data import UdfData
+                # from openeo_udf.api.structured_data import StructuredData
+                # udfdata = UdfData(
+                #     structured_data_list=[StructuredData(description="timeseries input", data=timeseries, type='dict')])
+                # udfdata.user_context = context_to_udf
+                # result_cube = udf_cropcalendars(udfdata)
                 #timeseries.download(r'S:\Nextland\BDB\Products\Phenology\Harvest_date\2016\datacube_test.json')
                 from openeo.rest.conversions import datacube_from_file
                 DataCube.execute_local_udf(udf, r'S:\Nextland\BDB\Products\Phenology\Harvest_date\2016\datacube_test.nc', fmt = 'netcdf')

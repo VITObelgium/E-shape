@@ -30,14 +30,21 @@ path_harvest_model=r"C:\Users\bontek\git\e-shape\Pilot1\Tests\Cropcalendars\Mode
 
 ######## FUNCTIONS ################
 
+def throw_if_empty(df):
+    if(df.empty):
+        raise ValueError("Empty input data for cropsar!")
+
 def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo,  Spark = False):
     index_fAPAR = metrics_order.index('fAPAR')
-    df_S2 = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_fAPAR)])].sort_index().T
+    df_S2 = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([index_fAPAR])].sort_index().T
+    throw_if_empty(df_S2)
     df_S2 *= fAPAR_rescale_Openeo
     index_S1_ascending = metrics_order.index('sigma_ascending_VH')
-    df_S1_ascending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_S1_ascending), str(index_S1_ascending+1), str(index_S1_ascending +2)])].sort_index().T
+    df_S1_ascending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([index_S1_ascending, index_S1_ascending+1, index_S1_ascending +2])].sort_index().T
+    throw_if_empty(df_S1_ascending)
     index_S1_descending = metrics_order.index('sigma_descending_VH')
-    df_S1_descending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_S1_descending), str(index_S1_descending+1), str(index_S1_descending +2)])].sort_index().T
+    df_S1_descending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([index_S1_descending, index_S1_descending+1, index_S1_descending +2])].sort_index().T
+    throw_if_empty(df_S1_descending)
     if Spark:
         cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
     else:
