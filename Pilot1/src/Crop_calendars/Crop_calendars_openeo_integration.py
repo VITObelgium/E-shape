@@ -1,8 +1,6 @@
 from pathlib import Path
-import numpy as np
 import pandas as pd
 import openeo
-import scipy.signal
 import shapely
 from openeo import Job
 from openeo.rest.conversions import timeseries_json_to_pandas
@@ -14,8 +12,6 @@ from Crop_calendars.Terrascope_catalogue_retrieval import OpenSearch
 
 from shapely.geometry.polygon import Polygon
 
-import shutil
-# from cropsar.preprocessing.cloud_mask_openeo import create_mask
 from Crop_calendars.create_mask import create_mask
 from Crop_calendars.prepare_geometry import prepare_geometry,remove_small_poly
 
@@ -70,15 +66,12 @@ class Cropcalendars():
 
         fapar_masked = fapar.mask(S2mask)
 
-        # gamma0=eoconn.load_collection('TERRASCOPE_S1_GAMMA0_V1')
         sigma_ascending = self._eoconn.load_collection('S1_GRD_SIGMA0_ASCENDING', bands=["VH", "VV", "angle"])
         sigma_descending = self._eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING',
                                                         bands=["VH", "VV", "angle"]).resample_cube_spatial(
             sigma_ascending)
 
         fapar_masked = fapar_masked.resample_cube_spatial(sigma_ascending)
-
-        # coherence=eoconn.load_collection('TERRASCOPE_S1_SLC_COHERENCE_V1')
 
         all_bands = sigma_ascending.merge(sigma_descending).merge(fapar_masked)  # .merge(coherence)
         return all_bands
@@ -98,42 +91,6 @@ class Cropcalendars():
 
     def generate_cropcalendars(self, start, end, gjson_path, window_values, thr_detection, crop_calendar_event, metrics_crop_event, index_window_above_thr):
             ##### FUNCTION TO BUILD A DATACUBE IN OPENEO
-
-
-             ##### OLD CLEANING CODE FOR S2
-            # def makekernel(size: int) -> np.ndarray:
-            #     assert size % 2 == 1
-            #     kernel_vect = scipy.signal.windows.gaussian(size, std=size / 6.0, sym=True)
-            #     kernel = np.outer(kernel_vect, kernel_vect)
-            #     kernel = kernel / kernel.sum()
-            #     return kernel
-            #
-            # ## cropsar masking function, probably still needs an update!
-            # def create_advanced_mask(band, startdate, enddate, band_math_workaround=True):
-            #     # in openEO, 1 means mask (remove pixel) 0 means keep pixel
-            #     classification = band
-            #
-            #     # keep useful pixels, so set to 1 (remove)
-            #     # if smaller than threshold
-            #     first_mask = ~ ((classification == 2) | (classification == 4) | (classification == 5) | (classification == 6) | (classification == 7))
-            #     first_mask = first_mask.apply_kernel(makekernel(9))
-            #     # remove pixels smaller than threshold, so pixels
-            #     # with a lot of neighbouring good pixels are retained?
-            #     if band_math_workaround:
-            #         first_mask = first_mask.add_dimension("bands", "mask", type="bands").band("mask")
-            #     first_mask = first_mask > 0.057
-            #
-            #     # remove cloud pixels so set to 1 (remove) if larger than threshold
-            #     second_mask = (classification == 3) | (classification == 8) | (classification == 9) | (classification == 10) | (classification == 11)
-            #     second_mask = second_mask.apply_kernel(makekernel(101))
-            #     if band_math_workaround:
-            #         second_mask = second_mask.add_dimension("bands", "mask", type="bands").band("mask")
-            #     second_mask = second_mask > 0.025
-            #
-            #     # TODO: the use of filter_temporal is a trick to make cube merging work, needs to be fixed in openeo client
-            #     return first_mask.filter_temporal(startdate, enddate) | second_mask.filter_temporal(startdate, enddate)
-            #     # return first_mask | second_mask
-            #     # return first_mask
 
             def get_angle(geo, start, end):
                 scale = 0.0005
@@ -205,100 +162,9 @@ class Cropcalendars():
 
                 return dict_metadata_ascending_RO_selection, dict_metadata_descending_RO_selection
 
-            def GEE_RO_retrieval(gj, i):
-                import ee
-                #### GEE part to find the available RO per orbit pass
-                if i == 0:
-                    ee.Initialize()
-                # Import the collections
-                sentinel1 = ee.ImageCollection("COPERNICUS/S1_GRD")
-                collection = ee.FeatureCollection(
-                    [ee.Feature(
-                        ee.Geometry.Polygon(
-                            [gj.features[i].geometry.coordinates[0]
-                             ]
-                        ), {'ID': '{}'.format(gj.features[i].properties['id'])}
-                    )]
-                )
-                filter_field = collection.filter(ee.Filter.eq('ID', '{}'.format(gj.features[i].properties['id'])))
-
-                try:
-                    ###############################################################################
-                    # PROCESSING SENTINEL 1
-                    ###############################################################################
-                    dict_metadata_ascending = dict()
-                    dict_angle_ascending = dict()
-                    dict_metadata_descending = dict()
-                    dict_angle_descending = dict()
-                    ro_checked = [] # this variable is added to avoid finding the angle for each time a specific RO pass => reduces processing time
-                    for mode in ['ASCENDING', 'DESCENDING']:
-                        print('Extracting Sentinel-1 data in %s mode for %s' % (mode,gj.features[i].properties['id'] ))
-                        # Filter S1 by metadata properties.
-                        sentinel1_filtered = sentinel1.filterBounds(filter_field.geometry().bounds()).filterDate(
-                            start, end) \
-                            .filter(ee.Filter.eq('orbitProperties_pass', mode)) \
-                            .filter(ee.Filter.eq('instrumentMode', 'IW')) \
-                            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
-                            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VH'))
-
-                        sentinel1_collection_contents = ee.List(sentinel1_filtered).getInfo()
-                        current_nr_files = len(sentinel1_collection_contents['features'])
-
-                        print('{} Sentinel-1 images match the request ...'.format(current_nr_files))
-                        for img_nr in range(current_nr_files):
-                            current_sentinel_img_id = str(sentinel1_collection_contents['features'][img_nr]['id'])
-
-
-
-                            if 'S1A' in current_sentinel_img_id:
-                                RO = ((int(current_sentinel_img_id.rsplit('_')[7][1:]) - 73) % 175) + 1
-                            if 'S1B' in current_sentinel_img_id:
-                                RO = ((int(current_sentinel_img_id.rsplit('_')[7][1:]) - 27) % 175) + 1
-
-                            if RO not in ro_checked:
-                                # if want to know the incidence angle for the field
-                                current_sentinel_img = ee.Image(current_sentinel_img_id)
-                                angle = current_sentinel_img.clip(filter_field.geometry()).reduceRegion(ee.Reducer.mean()).getInfo()['angle']
-                                if mode == 'ASCENDING':
-                                    dict_angle_ascending.update({RO : angle})
-
-                                if mode == 'DESCENDING':
-                                    dict_angle_descending.update({RO : angle})
-
-
-                            ro_checked.extend([RO])
-                            if mode == 'ASCENDING':
-                                dict_metadata_ascending.update(
-                                    {pd.to_datetime(current_sentinel_img_id.rsplit('_')[5][0:8]):RO})
-                            if mode == 'DESCENDING':
-                                dict_metadata_descending.update(
-                                    {pd.to_datetime(current_sentinel_img_id.rsplit('_')[5][0:8]): RO})
-
-                except KeyboardInterrupt:
-                    raise
-
-                dict_metadata_ascending_RO_selection, RO_ascending_selection = find_optimal_RO_per_pass(dict_metadata_ascending, dict_angle_ascending)
-                dict_ascending_orbits_field.update({gj.features[i].properties['id']: RO_ascending_selection})
-                dict_metadata_descending_RO_selection, RO_descending_selection = find_optimal_RO_per_pass(dict_metadata_descending, dict_angle_descending)
-                dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
-
-                return dict_metadata_ascending_RO_selection, dict_metadata_descending_RO_selection
-
             ###############################################################
             ###################### MAIN SCRIPT ############################
             ###############################################################
-
-
-
-            ### Not used: Script to find the best orbits (ascending + descending) based on GEE
-            # for i in range(len(gj)):
-            #     gj.features[i].properties['id'] = str(uuid.uuid1())
-            #     unique_ids_fields.extend([gj.features[i].properties['id']])
-            #     ### RETRIEVE THE MOST FREQUENT RELATIVE ORBIT PASS PER FIELD AND PER PASS FOR THE SPECIFIED TIME RANGE
-            #     RO_ascending_selection,RO_descending_selection = GEE_RO_retrieval(gj,i)
-            #     dict_ascending_orbits_field.update({gj.features[i].properties['id']: RO_ascending_selection})
-            #     dict_descending_orbits_field.update({gj.features[i].properties['id']: RO_descending_selection})
-
 
             gj, polygons_inw_buffered = self.load_geometry(gjson_path)
             geo = shapely.geometry.GeometryCollection(
@@ -330,48 +196,17 @@ class Cropcalendars():
             timeseries = bands_ts.filter_temporal(start,end).polygonal_mean_timeseries(geo)
             udf = self.load_udf('crop_calendar_udf.py')
 
-            run_local = False
-            run_local_udf = False
-            if not run_local and not run_local_udf:
-                # Default parameters are ingested in the UDF
-                context_to_udf = dict({'window_values': window_values, 'thr_detection': thr_detection, 'crop_calendar_event': crop_calendar_event,
-                                       'metrics_crop_event': metrics_crop_event, 'VH_VV_range_normalization': self.VH_VV_range_normalization,
-                                       'fAPAR_range_normalization': self.fAPAR_range_normalization, 'fAPAR_rescale_Openeo': self.fAPAR_rescale_Openeo,
-                                       'coherence_rescale_Openeo': self.coherence_rescale_Openeo,
-                                       'RO_ascending_selection_per_field': dict_ascending_orbits_field, 'RO_descending_selection_per_field': dict_descending_orbits_field,
-                                       'unique_ids_fields': unique_ids_fields, 'index_window_above_thr': index_window_above_thr,
-                                       'metrics_order': self.metrics_order, 'path_harvest_model': self.path_harvest_model})
-                job:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).send_job()
-                crop_calendars = job.start_and_wait().get_result().load_json()
-                crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
-            elif run_local_udf:
-                # from Crop_calendars.crop_calendar_udf import udf_cropcalendars
-                # from openeo_udf.api.udf_data import UdfData
-                # from openeo_udf.api.structured_data import StructuredData
-                # udfdata = UdfData(
-                #     structured_data_list=[StructuredData(description="timeseries input", data=timeseries, type='dict')])
-                # udfdata.user_context = context_to_udf
-                # result_cube = udf_cropcalendars(udfdata)
-                #timeseries.download(r'S:\Nextland\BDB\Products\Phenology\Harvest_date\2016\datacube_test.json')
-                from openeo.rest.conversions import datacube_from_file
-                DataCube.execute_local_udf(udf, r'S:\Nextland\BDB\Products\Phenology\Harvest_date\2016\datacube_test.nc', fmt = 'netcdf')
-
-
-            else:
-                # demo datacube of VH_VV and fAPAR time series
-                with open(r"S:\eshape\Pilot 1\NB_Jeroen_OpenEO\eshape\output_test\LPIS_fields_TS_final_cleaning_cropsar.json",'r') as ts_file:
-                    ts_dict = json.load(ts_file)
-                    df_metrics = timeseries_json_to_pandas(ts_dict)
-                    df_metrics.index = pd.to_datetime(df_metrics.index)
-
-
-                # use the UDF to determine the crop calendars for the fields in the geometrycollection
-                #from .crop_calendar_udf import udf_cropcalendars
-                from .crop_calendar_local import udf_cropcalendars_local
-                #crop_calendars = udf_cropcalendars(df_metrics, unique_ids_fields)
-
-                crop_calendars_df = udf_cropcalendars_local(ts_dict, unique_ids_fields, dict_ascending_orbits_field, dict_descending_orbits_field)
-
+            # Default parameters are ingested in the UDF
+            context_to_udf = dict({'window_values': window_values, 'thr_detection': thr_detection, 'crop_calendar_event': crop_calendar_event,
+                                   'metrics_crop_event': metrics_crop_event, 'VH_VV_range_normalization': self.VH_VV_range_normalization,
+                                   'fAPAR_range_normalization': self.fAPAR_range_normalization, 'fAPAR_rescale_Openeo': self.fAPAR_rescale_Openeo,
+                                   'coherence_rescale_Openeo': self.coherence_rescale_Openeo,
+                                   'RO_ascending_selection_per_field': dict_ascending_orbits_field, 'RO_descending_selection_per_field': dict_descending_orbits_field,
+                                   'unique_ids_fields': unique_ids_fields, 'index_window_above_thr': index_window_above_thr,
+                                   'metrics_order': self.metrics_order, 'path_harvest_model': self.path_harvest_model})
+            job:Job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).send_job()
+            crop_calendars = job.start_and_wait().get_result().load_json()
+            crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
 
 
             #### FINALLY ASSIGN THE CROP CALENDAR EVENTS AS PROPERTIES TO THE GEOJSON FILE WITH THE FIELDS
@@ -379,8 +214,6 @@ class Cropcalendars():
                 for c in range(crop_calendars_df.shape[1]):  # the amount of crop calendar events which were determined
                     gj.features[s].properties[crop_calendars_df.columns[c]] = \
                     crop_calendars_df.loc[crop_calendars_df.index == unique_ids_fields[s]][crop_calendars_df.columns[c]].values[0]  # the date of the event
-
-
             return gj
 
 
