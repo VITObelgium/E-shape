@@ -1,6 +1,5 @@
 from pathlib import Path
 import os
-
 from Crop_calendars.Crop_calendars_openeo_integration import Cropcalendars
 import json
 def main():

@@ -48,7 +48,7 @@ class Cropcalendars():
 
             self._eoconn = openeo\
                 .connect('https://openeo-dev.vito.be/openeo/1.0.0')\
-                .authenticate_basic('bontek', 'bontek123')
+                .authenticate_basic('eshape', 'eshape123')
         else:
             self._eoconn = connection
         self._open_search = OpenSearch()
