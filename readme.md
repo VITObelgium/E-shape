@@ -17,3 +17,7 @@ In this repository the code used for the cropcalendars is provided. Currently on
  
  In order to run the harvest detector please be sure that your input file with the fields is a .geojson file with as projection ('WGS84').
  For further specifications on the input requirements, please consult the  Main_crop_calendars_openeo_integration.py script under the section 'USER SPECIFIC PARARMETERS'. The other parameters don't need to change. 
+ 
+  **Ouput**
+  
+  The ouput file is .json with as additional attribute the harvest date. You can easily visualize the result in GIS programs (QGIS). 
