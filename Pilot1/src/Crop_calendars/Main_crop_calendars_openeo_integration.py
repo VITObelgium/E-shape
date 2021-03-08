@@ -16,7 +16,7 @@ def main():
     start = '2020-01-01'
     end = '2020-10-31'
     # the folder in which you want to store the output result
-    outdir = r'C:\Test'
+    outdir = r'C:\Test\'
 
     #the name of the output file containing the crop calendar
     #info for the fields
