@@ -15,10 +15,11 @@ from tensorflow.keras.models import load_model
 # import json
 
 ######## FUNCTIONS ################
-def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo, Spark = True):
+def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo, shub, Spark = True):
     index_fAPAR = metrics_order.index('fAPAR')
     df_S2 = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_fAPAR)])].sort_index().T
-    df_S2 *= fAPAR_rescale_Openeo
+    if not shub:
+        df_S2 *= fAPAR_rescale_Openeo
     index_S1_ascending = metrics_order.index('sigma_ascending_VH')
     df_S1_ascending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_S1_ascending), str(index_S1_ascending+1), str(index_S1_ascending +2)])].sort_index().T
     index_S1_descending = metrics_order.index('sigma_descending_VH')
@@ -60,19 +61,31 @@ def prepare_df_NN_model(df, window_values, ids_field, ro_s, metrics_crop_event):
     window_width = (window_values - 1) * 6  # days within the window
     df_harvest_model = []
     print('{} FIELDS TO COMPILE IN DATASET'.format(len(ids_field)))
+    #TODO allow detection over the years
     for id_field in ids_field:
-        ts_descending = pd.date_range('{}'.format(list(ro_s['descending']['{}'.format(id_field)].keys())[0]),
-                                      '{}-12-31'.format(
-                                          list(ro_s['descending']['{}'.format(id_field)].keys())[0].rsplit('-')[0]),
-                                      freq="6D", tz='utc').date
-        ts_ascending = pd.date_range('{}'.format(list(ro_s['ascending']['{}'.format(id_field)].keys())[0]),
-                                     '{}-12-31'.format(
-                                         list(ro_s['ascending']['{}'.format(id_field)].keys())[0].rsplit('-')[0]),
-                                     freq="6D", tz='utc').date
+        if list(ro_s['descending']['{}'.format(id_field)].keys()):
+            ts_descending = pd.date_range('{}'.format(list(ro_s['descending']['{}'.format(id_field)].keys())[0]),
+                                          '{}-12-31'.format(
+                                              list(ro_s['descending']['{}'.format(id_field)].keys())[0].rsplit('-')[0]),
+                                          freq="6D", tz='utc').date
+        else:
+            ts_descending = None
+
+        if list(ro_s['ascending']['{}'.format(id_field)].keys()):
+            ts_ascending = pd.date_range('{}'.format(list(ro_s['ascending']['{}'.format(id_field)].keys())[0]),
+                                         '{}-12-31'.format(
+                                             list(ro_s['ascending']['{}'.format(id_field)].keys())[0].rsplit('-')[0]),
+                                         freq="6D", tz='utc').date
+
+        else:
+            ts_ascending = None
         ts_orbits = [ts_descending, ts_ascending]
         orbit_pass = [r'descending', r'ascending']
         o = 0
         for ts_orbit in ts_orbits:
+            if ts_orbit is None:
+                ## ORBIT IS NOT AVAILABLE FOR HARVEST DETECTION
+                continue
             df_orbit = df.reindex(ts_orbit)
             metrics_crop_event_orbit_pass = [item.format(orbit_pass[o]) for item in metrics_crop_event]
             # the amount of windows that can be created in the time period
@@ -172,15 +185,17 @@ def udf_cropcalendars(udf_data:UdfData):
     ts_df.index = pd.to_datetime(ts_df.index).date
 
     # function to calculate the cropsar curve
-    ts_df_cropsar = get_cropsar_TS(ts_df, context_param_var.get('unique_ids_fields'), context_param_var.get('metrics_order'), context_param_var.get('fAPAR_rescale_Openeo'))
+    ts_df_cropsar = get_cropsar_TS(ts_df, context_param_var.get('unique_ids_fields'), context_param_var.get('metrics_order'), context_param_var.get('fAPAR_rescale_Openeo'),
+                                   context_param_var.get('shub'))
     # rescale cropsar values
     ts_df_cropsar = rescale_cropSAR(ts_df_cropsar, context_param_var.get('fAPAR_range_normalization'), context_param_var.get('unique_ids_fields'), 'cropSAR')
 
     # function to rescale the metrics based
     # on the rescaling factor of the metric
-    def rescale_metrics(df, rescale_factor, fAPAR_range, unique_ids_fields, metric_suffix):
-        df[[item + '_{}'.format(str(metric_suffix)) for item in unique_ids_fields]] = df.loc[:, ts_df.columns.isin(
-            [item + '_{}'.format(str(metric_suffix)) for item in unique_ids_fields])] * rescale_factor
+    def rescale_metrics(df, rescale_factor, fAPAR_range, unique_ids_fields, metric_suffix, shub):
+        if not shub:
+            df[[item + '_{}'.format(str(metric_suffix)) for item in unique_ids_fields]] = df.loc[:, ts_df.columns.isin(
+                [item + '_{}'.format(str(metric_suffix)) for item in unique_ids_fields])] * rescale_factor
         df[[item + '_{}'.format(str(metric_suffix)) for item in unique_ids_fields]] = 2 * (
                 df[[item + '_{}'.format(str(metric_suffix)) for item in unique_ids_fields]] - fAPAR_range[0]) / (
                                                                                               fAPAR_range[1] -
@@ -203,7 +218,7 @@ def udf_cropcalendars(udf_data:UdfData):
     #### rescale the fAPAR to 0 and 1 and convert
     # it to values between -1 and 1
     ts_df_prepro = rescale_metrics(ts_df_prepro, context_param_var.get('fAPAR_rescale_Openeo'), context_param_var.get('fAPAR_range_normalization'),
-                                   context_param_var.get('unique_ids_fields'), 'fAPAR')
+                                   context_param_var.get('unique_ids_fields'), 'fAPAR', context_param_var.get('shub'))
 
     ro_s = {'ascending': context_param_var.get('RO_ascending_selection_per_field'), 'descending': context_param_var.get('RO_descending_selection_per_field')}
 
