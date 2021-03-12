@@ -263,7 +263,7 @@ class Cropcalendars():
             geo = shapely.geometry.GeometryCollection(
                 [shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
 
-            # get some info on the indicence angle covering the fields
+            # get some info on the incidence angle covering the fields
             if not shub:
                 angle_fields = get_angle(geo, start, end)
             else:
@@ -281,10 +281,10 @@ class Cropcalendars():
             for s in range(len(gj.features)):
                 gj.features[s].properties['id'] = str(uuid.uuid1())
                 unique_ids_fields.extend([gj.features[s].properties['id']])
-                if not shub:
-                    RO_ascending_selection, RO_descending_selection = Opensearch_OpenEO_RO_selection(angle_fields, gj, orbit_passes, s)
-                else:
-                    RO_ascending_selection, RO_descending_selection = find_optimal_RO_SHUB(angle_fields, orbit_passes, s)
+                # if not shub:
+                #     RO_ascending_selection, RO_descending_selection = Opensearch_OpenEO_RO_selection(angle_fields, gj, orbit_passes, s)
+                # else:
+                RO_ascending_selection, RO_descending_selection = find_optimal_RO_SHUB(angle_fields, orbit_passes, s)
                 dict_ascending_orbits_field.update({gj.features[s].properties['id']: RO_ascending_selection})
                 dict_descending_orbits_field.update({gj.features[s].properties['id']: RO_descending_selection})
 
