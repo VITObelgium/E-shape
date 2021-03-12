@@ -94,6 +94,7 @@ class Cropcalendars():
 
             def get_angle(geo, start, end):
                 scale = 0.0005
+                offset = 29
                 orbit_passes = [r'ASCENDING', r'DESCENDING']
                 dict_df_angles_fields = dict()
                 for orbit_pass in orbit_passes:
@@ -113,7 +114,7 @@ class Cropcalendars():
 
                     new_columns = [str(item) + '_angle' for item in list(df_angle_fields.columns.values)]
                     df_angle_fields.rename(columns = dict(zip(list(df_angle_fields.columns.values), new_columns)), inplace= True)
-                    df_angle_fields = df_angle_fields*scale
+                    df_angle_fields = df_angle_fields*scale + offset
                     dict_df_angles_fields.update({'{}'.format(orbit_pass): df_angle_fields})
                 return dict_df_angles_fields
 
