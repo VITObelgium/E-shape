@@ -11,10 +11,10 @@ def main():
     #### USER SPECIFIC PARARMETERS
     # the directory of the file (geojson format) which is going
     # to be used to determine the specific crop calendar event
-    gjson_path = r"S:\eshape\tmp\harvest_detector\Field_test.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
+    gjson_path = r"S:\eshape\tmp\harvest_detector\Fields_US\Field_test.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
     ## define the time period for extracting the time series data
-    start = '2020-05-01'
-    end = '2020-10-31'
+    start = '2019-01-01'#'2020-05-01'
+    end = '2021-02-02'#'2020-10-31'
     # the folder in which you want to store the output result
     outdir = r'S:\eshape\tmp\harvest_detector'
 
@@ -27,6 +27,7 @@ def main():
     window_values = 5 # define the amount of S1 coverages within the window for extraction
     thr_detection = 0.75 # threshold for crop event detection
     index_window_above_thr = 2 # the index position above the threshold that will be used to define the crop event date
+    max_gap_prediction = 24  # the max amount of days that are allowed between harvest detection predictions
     crop_calendar_event = 'Harvest'
     metrics_crop_event = ['cropSAR', 'VH_VV_{}'] # the metrics used to determine the crop calendar event
     shub = True
@@ -36,7 +37,7 @@ def main():
     # in its properties the derived crop calendar events
     gj_cropcalendars_info = generator.generate_cropcalendars(start = start, end = end, gjson_path = gjson_path, window_values= window_values, thr_detection= thr_detection,
                                                              crop_calendar_event= crop_calendar_event, metrics_crop_event = metrics_crop_event,
-                                                             index_window_above_thr = index_window_above_thr, shub = shub) # returns the geometry collection with as attribute the crop calendars per field ID
+                                                             index_window_above_thr = index_window_above_thr, shub = shub, max_gap_prediction = max_gap_prediction) # returns the geometry collection with as attribute the crop calendars per field ID
     ### The output file location (json format) which you want to use to store the result
     with open(os.path.join(outdir, outname),"w") as file:
         file.write(json.dumps(gj_cropcalendars_info))

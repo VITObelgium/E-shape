@@ -21,6 +21,7 @@ VH_VV_range_normalization= [-13, -3.5]
 fAPAR_range_normalization= [0,1]
 fAPAR_rescale_Openeo= 0.005
 coherence_rescale_Openeo= 0.004
+max_gap_prediction = 24 # the max amount of days that are allowed between harvest detection predictions
 shub  = True
 
 
@@ -50,7 +51,7 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     if Spark:
         cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
     else:
-        cropsar_df = pd.read_csv(r"S:\eshape\tmp\harvest_detector\cropsar_TS.csv")
+        cropsar_df = pd.read_csv(r"S:\eshape\tmp\harvest_detector\Fields_US\cropsar_long_TS.csv")
         cropsar_df = cropsar_df.set_index(cropsar_df.columns[0])
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date
@@ -84,14 +85,14 @@ def prepare_df_NN_model(df, window_values, ids_field, ro_s, metrics_crop_event):
     for id_field in ids_field:
         if list(ro_s['descending']['{}'.format(id_field)].keys()):
             ts_descending = pd.date_range('{}'.format(list(ro_s['descending']['{}'.format(id_field)].keys())[0]),
-                                             '{}-12-31'.format(list(ro_s['descending']['{}'.format(id_field)].keys())[0].rsplit('-')[0]),
+                                            df.index[-1], # '{}-12-31'.format(list(ro_s['descending']['{}'.format(id_field)].keys())[0].rsplit('-')[0])
                                              freq="6D", tz='utc').date
         else:
             ts_descending = None
 
         if list(ro_s['ascending']['{}'.format(id_field)].keys()):
             ts_ascending = pd.date_range('{}'.format(list(ro_s['ascending']['{}'.format(id_field)].keys())[0]),
-                                             '{}-12-31'.format(list(ro_s['ascending']['{}'.format(id_field)].keys())[0].rsplit('-')[0]),
+                                             df.index[-1], #'{}-12-31'.format(list(ro_s['ascending']['{}'.format(id_field)].keys())[0].rsplit('-')[0])
                                              freq="6D", tz='utc').date
         else:
             ts_ascending = None
@@ -100,6 +101,7 @@ def prepare_df_NN_model(df, window_values, ids_field, ro_s, metrics_crop_event):
         o = 0
         for ts_orbit in ts_orbits:
             if ts_orbit is None:
+                o += 1
                 ## ORBIT IS NOT AVAILABLE FOR HARVEST DETECTION
                 continue
             #TODO loop over the orbit passes and change the name of the metrics crop event so that it can be found by the filtering
@@ -147,8 +149,40 @@ def apply_NN_model_crop_calendars(df, amount_metrics_model, thr_detection, crop_
     df['NN_model_detection_{}'.format(crop_calendar_event)] = predictions
     return df
 
+# function to search which harvest predictions are consecutive and count the amount of consecutive prediction for final harvest detection
+def search_conseecutive_harvest_detections(df_filtering, max_gap_prediction, index_window_above_thr):
+    ### check for consecutive harvest detections:
+
+    # first calculate the difference in days between the next harvest detection a shift of one position upward is needed for this
+    df_filtering.loc[:, 'days_difference_next_detection'] = df_filtering.loc[:,'prediction_date_window'].diff().dt.days.fillna(999,downcast='infer').shift(-1)
+
+    # second calculate the difference in days between the previous harvest detection. This one is needed to locate a harvest prediction at the end of a series of consecutive harvest predictions
+    # this end is marked with a large gap in the next good harvest prediction
+    df_filtering.loc[:, 'days_difference_previous_detection'] = df_filtering.loc[:,'prediction_date_window'].diff().dt.days.fillna(999, downcast='infer')
+
+    # fill up the last harvest prediction based on second last difference in prediction
+    df_filtering['days_difference_next_detection'].iloc[-1] = df_filtering['days_difference_next_detection'].iloc[-2]
+
+    ## now filter both differences based on the max allowed gap between predictions
+
+    df_filtering['days_difference_next_detection_filter'] = df_filtering['days_difference_next_detection'] <= max_gap_prediction
+    df_filtering['days_difference_previous_detection_filter'] = df_filtering['days_difference_previous_detection'] <= max_gap_prediction
+
+    # count the amount of consecutive harvest predictions based on the difference with the next harvest prediction
+    df_filtering['times_consecutive_threshold_exceeded'] = (df_filtering['days_difference_next_detection'] <= max_gap_prediction).rolling(index_window_above_thr + 1).sum()
+
+    ## search for the situation when a consecutive series of harvest prediction is only "index_window_above_thr -1" but in fact the next prediction is also within the allowed margin.
+    # for this the previous difference column is needed
+    df_filtering.loc[((df_filtering['times_consecutive_threshold_exceeded'] == index_window_above_thr) & (
+            df_filtering['days_difference_previous_detection_filter'] == True) &
+            (df_filtering['days_difference_next_detection_filter'] == False)), 'times_consecutive_threshold_exceeded'] = index_window_above_thr + 1
+
+    output = df_filtering['times_consecutive_threshold_exceeded'].values
+    return output
+
+
 # function to create the crop calendar information for the fields
-def create_crop_calendars_fields(df, ids_field, index_window_above_thr):
+def create_crop_calendars_fields(df, ids_field, index_window_above_thr, max_gap_prediction):
     df_crop_calendars = [] # the dataframe the will store per field the predict crop calendar event
     orbit_passes = [r'ascending', r'descending']
     for id in ids_field:  ### here can insert a loop for the different crop calendar events for that field
@@ -157,9 +191,22 @@ def create_crop_calendars_fields(df, ids_field, index_window_above_thr):
         df_filtered_id = df[df.index.str.contains(id)]
         for orbit_pass in orbit_passes:
             df_filtered_id_pass = df_filtered_id[(df_filtered_id.index.str.contains(orbit_pass)) & (df_filtered_id['NN_model_detection_Harvest'] == 1)]
+
             if not df_filtered_id_pass.shape[0] <index_window_above_thr + 1:
-                df_crop_calendars_orbit_pass.append(pd.DataFrame(data = pd.to_datetime(df_filtered_id_pass.iloc[index_window_above_thr,:]['prediction_date_window']),
-                                                          index = ['{}'.format(orbit_pass)], columns= ['prediction_date'])) # select the x-th position for which the threshold was exceeded
+                ## filter on the suitable harvest detections (based on the amount of times harvest is predicted within the max_gap_prediction threshold
+                count_harvest_consecutive_exceeded = search_conseecutive_harvest_detections(df_filtered_id_pass,
+                                                                                            max_gap_prediction,
+                                                                                            index_window_above_thr)
+
+                df_filtered_id_pass['count_harvest_consecutive_exceeded'] = count_harvest_consecutive_exceeded
+
+                # select the harvest date the the first time match the requirements
+                df_crop_calendars_orbit_pass.append(pd.DataFrame(data=pd.to_datetime
+                (df_filtered_id_pass.loc[df_filtered_id_pass['count_harvest_consecutive_exceeded'] == index_window_above_thr+1]['prediction_date_window'].iloc[0]),
+                                                          index = ['{}'.format(orbit_pass)], columns= ['prediction_date']))
+
+                # df_crop_calendars_orbit_pass.append(pd.DataFrame(data = pd.to_datetime(df_filtered_id_pass.iloc[index_window_above_thr,:]['prediction_date_window']),
+                #                                           index = ['{}'.format(orbit_pass)], columns= ['prediction_date'])) # select the x-th position for which the threshold was exceeded
 
         if df_crop_calendars_orbit_pass:
             df_crop_calendars_orbit_pass = pd.concat(df_crop_calendars_orbit_pass)
@@ -244,7 +291,7 @@ def udf_cropcalendars_local(ts_dict, unique_ids_fields, RO_ascending_selection_p
     df_NN_prediction = apply_NN_model_crop_calendars(ts_df_input_NN, amount_metrics_model, thr_detection,
                                                      crop_calendar_event, NN_model_dir)
 
-    df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction, unique_ids_fields, index_window_above_thr)
+    df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction, unique_ids_fields, index_window_above_thr, max_gap_prediction)
 
     udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=df_crop_calendars_result.to_dict(),type="dict")])
     return udf_data

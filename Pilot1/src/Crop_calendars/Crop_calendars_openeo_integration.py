@@ -104,7 +104,8 @@ class Cropcalendars():
 
         return gj,polygons_inw_buffered
 
-    def generate_cropcalendars(self, start, end, gjson_path, window_values, thr_detection, crop_calendar_event, metrics_crop_event, index_window_above_thr, shub):
+    def generate_cropcalendars(self, start, end, gjson_path, window_values, thr_detection, crop_calendar_event, metrics_crop_event, index_window_above_thr, shub,
+                               max_gap_prediction):
             ##### FUNCTION TO BUILD A DATACUBE IN OPENEO
 
             def get_angle(geo, start, end):
@@ -140,13 +141,13 @@ class Cropcalendars():
                 angle = self._eoconn.load_collection('SENTINEL1_GRD', bands = ['VV'])
                 try:
                     #angle_fields = angle.filter_temporal(start, end).polygonal_mean_timeseries(geo).execute()
-                    angle_fields = angle.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True).filter_temporal(start, end).polygonal_mean_timeseries(geo).send_job().start_and_wait().get_result().load_json()
-                    # with open(r"S:\eshape\tmp\harvest_detector\S1_TS_SHUB.json",'w') as json_file:
-                    #     json.dump(angle_fields, json_file)
-                    # with open(r"S:\eshape\tmp\harvest_detector\S1_TS_SHUB.json", 'r') as json_file:
-                    #     ts = json.load(json_file)
-                    df_angle_fields = timeseries_json_to_pandas(angle_fields)
-                    #df_angle_fields = timeseries_json_to_pandas(ts)
+                    #angle_fields = angle.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True).filter_temporal(start, end).polygonal_mean_timeseries(geo).send_job().start_and_wait().get_result().load_json()
+                    # with open(r"S:\eshape\tmp\harvest_detector\Fields_US\S1_TS_SHUB_long_TS.json",'w') as json_file:
+                    #      json.dump(angle_fields, json_file)
+                    with open(r"S:\eshape\tmp\harvest_detector\Fields_US\S1_TS_SHUB_long_TS.json", 'r') as json_file:
+                         ts = json.load(json_file)
+                    #df_angle_fields = timeseries_json_to_pandas(angle_fields)
+                    df_angle_fields = timeseries_json_to_pandas(ts)
                     df_angle_fields = df_angle_fields.loc[:, (slice(None), 1)] # keep only the angles
                     df_angle_fields.columns = df_angle_fields.columns.get_level_values(0)
                 except Exception as e:
@@ -190,19 +191,19 @@ class Cropcalendars():
                     #check if data for this orbit is available otherwise skip it
                     if not orbit_pass in angle_fields.keys():
                         continue
-                    df_angle_pass = angle_fields['{}'.format(orbit_pass)].iloc[:, s]
-                    df_angle_pass.index = pd.to_datetime(df_angle_pass.index)
-                    df_angle_pass = df_angle_pass.tz_localize(None)
+                    angle_pass_TS = angle_fields['{}'.format(orbit_pass)].iloc[:, s]
+                    angle_pass_TS.index = pd.to_datetime(angle_pass_TS.index)
+                    angle_pass_TS = angle_pass_TS.tz_localize(None)
                     # make dataframe from incidence angle pd.series
-                    df_angle_pass_RO_selection = pd.DataFrame(data=df_angle_pass.values, columns=(['RO']),
-                                 index=df_angle_pass.index)
+                    df_angle_pass = pd.DataFrame(data=angle_pass_TS.values, columns=(['RO']),
+                                 index=angle_pass_TS.index)
                     ## round the angles to find which belongs to the same RO
-                    df_angle_pass_RO_selection['RO_rounded'.format(orbit_pass)] = df_angle_pass_RO_selection['RO'].round(decimals = 1)
-                    unique_angles = list(df_angle_pass_RO_selection.dropna()['RO_rounded'].unique())
+                    df_angle_pass['RO_rounded'.format(orbit_pass)] = df_angle_pass['RO'].round(decimals = 1)
+                    unique_angles = list(df_angle_pass.dropna()['RO_rounded'].unique())
                     dict_dates_angle = dict()
                     for angle in unique_angles:
-                        difference = df_angle_pass_RO_selection['RO']-angle
-                        dict_dates_angle.update({angle: list(df_angle_pass_RO_selection.loc[difference[((difference < 0.5) & (difference > -0.5))].index]['RO_rounded'].index.values)})
+                        difference = df_angle_pass['RO']-angle
+                        dict_dates_angle.update({angle: list(df_angle_pass.loc[difference[((difference < 0.5) & (difference > -0.5))].index]['RO_rounded'].index.values)})
 
                     RO_orbit_counter = {key: len(value) for key, value in dict_dates_angle.items()}
                     RO_shallowest_angle = max(dict_dates_angle.keys())
@@ -286,11 +287,11 @@ class Cropcalendars():
 
             ##### POST PROCESSING TIMESERIES USING A UDF
             timeseries = bands_ts.filter_temporal(start,end).polygonal_mean_timeseries(geo)
-            # timeseries = timeseries.execute()
-            # with open(r"S:\eshape\tmp\harvest_detector\all_bands.json",'w') as json_file:
+            #timeseries = timeseries.send_job().start_and_wait().get_result().load_json()
+            # with open(r"S:\eshape\tmp\harvest_detector\Fields_US\all_bands_long_ts.json",'w') as json_file:
             #      json.dump(timeseries, json_file)
-            with open(r"S:\eshape\tmp\harvest_detector\all_bands.json", 'r') as json_file:
-                ts = json.load(json_file)
+            # with open(r"S:\eshape\tmp\harvest_detector\Fields_US\all_bands_long_ts.json", 'r') as json_file:
+            #     ts = json.load(json_file)
 
             udf = self.load_udf('crop_calendar_udf.py')
             run_local_udf = False
@@ -303,10 +304,9 @@ class Cropcalendars():
                                    'RO_ascending_selection_per_field': dict_ascending_orbits_field, 'RO_descending_selection_per_field': dict_descending_orbits_field,
                                    'unique_ids_fields': unique_ids_fields, 'index_window_above_thr': index_window_above_thr,
                                    'metrics_order': self.metrics_order, 'path_harvest_model': self.path_harvest_model,
-                                   'shub': shub})
+                                   'shub': shub, 'max_gap_prediction': max_gap_prediction})
             if not run_local_udf:
-                job = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).send_job()
-                crop_calendars = job.start_and_wait().get_result().load_json()
+                crop_calendars = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf).send_job().start_and_wait().get_result().load_json()
                 crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
 
             elif run_local_udf:
