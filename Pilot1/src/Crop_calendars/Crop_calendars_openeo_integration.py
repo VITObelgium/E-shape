@@ -110,26 +110,28 @@ class Cropcalendars():
 
             def get_angle(geo, start, end):
                 scale = 0.0005
+                offset = 29
                 orbit_passes = [r'ASCENDING', r'DESCENDING']
                 dict_df_angles_fields = dict()
                 for orbit_pass in orbit_passes:
                     angle = self._eoconn.load_collection('S1_GRD_SIGMA0_{}'.format(orbit_pass), bands = ['angle']).band('angle')
                     try:
-                        angle_fields = angle.filter_temporal(start,end).polygonal_mean_timeseries(geo).send_job().start_and_wait().get_result().load_json()
-                        df_angle_fields = timeseries_json_to_pandas(angle_fields)
+                        angle_fields = angle.filter_temporal(start,end).polygonal_mean_timeseries(geo).execute()
+
                     except Exception:
                         print('RUNNING IN EXECUTE MODE WAS NOT POSSIBLE ... TRY BATCH MODE')
-                        angle.polygonal_mean_timeseries(geo).filter_temporal(start, end).execute_batch('angle_{}.json'.format(orbit_pass))
-                        with open('angle_{}.json'.format(orbit_pass), 'r') as angle_file:
-                            angle_fields_ts = json.load(angle_file)
-                            df_angle_fields = timeseries_json_to_pandas(angle_fields_ts)
-                            df_angle_fields.index = pd.to_datetime(df_angle_fields.index).date
-                            angle_file.close()
-                            os.remove(os.path.join(os.getcwd(),'angle_{}.json'.format(orbit_pass)))
+                        angle_fields = angle.polygonal_mean_timeseries(geo).filter_temporal(start, end).send_job().start_and_wait().get_result().load_json()
+                        # with open('angle_{}.json'.format(orbit_pass), 'r') as angle_file:
+                        #     angle_fields_ts = json.load(angle_file)
+                        #     df_angle_fields = timeseries_json_to_pandas(angle_fields_ts)
+                        #     df_angle_fields.index = pd.to_datetime(df_angle_fields.index).date
+                        #     angle_file.close()
+                        #     os.remove(os.path.join(os.getcwd(),'angle_{}.json'.format(orbit_pass)))
 
+                    df_angle_fields = timeseries_json_to_pandas(angle_fields)
                     new_columns = [str(item) + '_angle' for item in list(df_angle_fields.columns.values)]
                     df_angle_fields.rename(columns = dict(zip(list(df_angle_fields.columns.values), new_columns)), inplace= True)
-                    df_angle_fields = df_angle_fields*scale
+                    df_angle_fields = df_angle_fields*scale + offset
                     dict_df_angles_fields.update({'{}'.format(orbit_pass): df_angle_fields})
                 return dict_df_angles_fields
 
@@ -141,13 +143,17 @@ class Cropcalendars():
                 angle = self._eoconn.load_collection('SENTINEL1_GRD', bands = ['VV'])
                 try:
                     #angle_fields = angle.filter_temporal(start, end).polygonal_mean_timeseries(geo).execute()
-                    #angle_fields = angle.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True).filter_temporal(start, end).polygonal_mean_timeseries(geo).send_job().start_and_wait().get_result().load_json()
+                    try:
+                        angle_fields = angle.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True).filter_temporal(start, end).polygonal_mean_timeseries(geo).execute()
+                    except:
+                        print('RUNNING IN EXECUTE MODE WAS NOT POSSIBLE ... TRY BATCH MODE')
+                        angle_fields = angle.polygonal_mean_timeseries(geo).filter_temporal(start, end).send_job().start_and_wait().get_result().load_json()
                     # with open(r"S:\eshape\tmp\harvest_detector\Fields_US\S1_TS_SHUB_long_TS.json",'w') as json_file:
                     #      json.dump(angle_fields, json_file)
-                    with open(r"S:\eshape\tmp\harvest_detector\Fields_US\S1_TS_SHUB_long_TS.json", 'r') as json_file:
-                         ts = json.load(json_file)
-                    #df_angle_fields = timeseries_json_to_pandas(angle_fields)
-                    df_angle_fields = timeseries_json_to_pandas(ts)
+                    # with open(r"S:\eshape\tmp\harvest_detector\Fields_US\S1_TS_SHUB_long_TS.json", 'r') as json_file:
+                    #      ts = json.load(json_file)
+                    df_angle_fields = timeseries_json_to_pandas(angle_fields)
+                    #df_angle_fields = timeseries_json_to_pandas(ts)
                     df_angle_fields = df_angle_fields.loc[:, (slice(None), 1)] # keep only the angles
                     df_angle_fields.columns = df_angle_fields.columns.get_level_values(0)
                 except Exception as e:

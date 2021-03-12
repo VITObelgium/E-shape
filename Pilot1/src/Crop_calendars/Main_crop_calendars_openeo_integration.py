@@ -11,17 +11,17 @@ def main():
     #### USER SPECIFIC PARARMETERS
     # the directory of the file (geojson format) which is going
     # to be used to determine the specific crop calendar event
-    gjson_path = r"S:\eshape\tmp\harvest_detector\Fields_US\Field_test.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
+    gjson_path = r"S:\eshape\tmp\harvest_detector\Field_BE\Field_BE.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
     ## define the time period for extracting the time series data
     start = '2019-01-01'#'2020-05-01'
-    end = '2021-02-02'#'2020-10-31'
+    end = '2020-02-02'#'2020-10-31'
     # the folder in which you want to store the output result
-    outdir = r'S:\eshape\tmp\harvest_detector'
+    outdir = r'S:\eshape\tmp\harvest_detector\Field_BE'
 
     #the name of the output file containing the crop calendar
     #info for the fields
 
-    outname = r'Test_fields.json'#r'Extract_LPIS_test.json'
+    outname = r'Test_fields_before_RO_selection_change_Terra.json'#r'Extract_LPIS_test.json'
 
     ##### CROP CALENDAR EVENT SPECIFIC PARAMETERS FOR THE EVENT THAT NEEDS TO BE DETERMINED
     window_values = 5 # define the amount of S1 coverages within the window for extraction
@@ -30,8 +30,7 @@ def main():
     max_gap_prediction = 24  # the max amount of days that are allowed between harvest detection predictions
     crop_calendar_event = 'Harvest'
     metrics_crop_event = ['cropSAR', 'VH_VV_{}'] # the metrics used to determine the crop calendar event
-    shub = True
-
+    shub = False
     ###### INITIATE THE CLASS AND RUN THE CROP CALENDAR MODEL
     # The output contains an updated geojson file with
     # in its properties the derived crop calendar events
