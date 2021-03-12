@@ -11,17 +11,17 @@ def main():
     #### USER SPECIFIC PARARMETERS
     # the directory of the file (geojson format) which is going
     # to be used to determine the specific crop calendar event
-    gjson_path = r"S:\eshape\Pilot 1\data\WIG_data\tmp\WIG_harvest_detection_fields.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
+    gjson_path = r'C:\Test\input_file.geojson' 
     ## define the time period for extracting the time series data
     start = '2020-01-01'
     end = '2020-10-31'
     # the folder in which you want to store the output result
-    outdir = r'S:\eshape\Pilot 1\data\WIG_data\tmp'
+    outdir = r'C:\Test\'
 
     #the name of the output file containing the crop calendar
     #info for the fields
 
-    outname = r'Test_WIG.json'#r'Extract_LPIS_test.json'
+    outname = r'Test.json'#r'Extract_LPIS_test.json'
 
     ##### CROP CALENDAR EVENT SPECIFIC PARAMETERS FOR THE EVENT THAT NEEDS TO BE DETERMINED
     window_values = 5 # define the amount of S1 coverages within the window for extraction
