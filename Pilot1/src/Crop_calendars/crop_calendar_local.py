@@ -22,7 +22,7 @@ fAPAR_range_normalization= [0,1]
 fAPAR_rescale_Openeo= 0.005
 coherence_rescale_Openeo= 0.004
 max_gap_prediction = 24 # the max amount of days that are allowed between harvest detection predictions
-shub  = True
+shub  = False
 
 
 metrics_order =  ['sigma_ascending_VH', 'sigma_ascending_VV','sigma_ascending_angle','sigma_descending_VH', 'sigma_descending_VV','sigma_descending_angle', 'fAPAR']  # The index position of the metrics returned from the OpenEO datacube
@@ -51,7 +51,7 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     if Spark:
         cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
     else:
-        cropsar_df = pd.read_csv(r"S:\eshape\tmp\harvest_detector\Fields_US\cropsar_long_TS.csv")
+        cropsar_df = pd.read_csv(r"S:\eshape\tmp\harvest_detector\Field_BE\Field_BE_TS_20190101_20190731_cropsar.csv")
         cropsar_df = cropsar_df.set_index(cropsar_df.columns[0])
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date
@@ -228,12 +228,12 @@ def rescale_cropSAR(df, range, ids_field, metric_suffix):
                                                                                           range[0]) - 1
     return df
 
-def udf_cropcalendars_local(ts_dict, unique_ids_fields, RO_ascending_selection_per_field,  RO_descending_selection_per_field):
+def udf_cropcalendars_local(ts_dict):
     ts_df = timeseries_json_to_pandas(ts_dict)
     ts_df.index = pd.to_datetime(ts_df.index).date
 
     some_item_for_date = next(iter(ts_dict.values()))
-    number_of_fields = len(some_item_for_date)
+    unique_ids_fields = ['Field_' + str(item) for item in np.arange(len(some_item_for_date))]
 
     #unique_ids_fields = [str(uuid.uuid1()) for i in range(number_of_fields)]
 
@@ -257,6 +257,68 @@ def udf_cropcalendars_local(ts_dict, unique_ids_fields, RO_ascending_selection_p
     ### EVENT 1: HARVEST DETECTION
     NN_model_dir = path_harvest_model
     amount_metrics_model = len(metrics_crop_event) * window_values
+
+    ### DEFINE THE SUITABLE ORBITS (ASCENDING/DESCENDING) FOR HARVEST DETECTION
+    def find_optimal_RO_SHUB(ts_df, orbit_passes, s, shub):
+        # TODO USE THE SAME FUNCTION FOR FINDING ORBITS WITH TERRASCOPE DATA
+        dict_metadata_ascending_RO_selection = {}
+        dict_metadata_descending_RO_selection = {}
+        for orbit_pass in orbit_passes:
+            angle_fields = ts_df.loc[:,(slice(None), metrics_order.index('sigma_{}_angle'.format(orbit_pass.lower())))]
+            angle_fields.columns = angle_fields.columns.get_level_values(0)
+            angle_pass_TS = angle_fields.iloc[:, s]
+            angle_pass_TS.index = pd.to_datetime(angle_pass_TS.index)
+            angle_pass_TS = angle_pass_TS.tz_localize(None)
+            # make dataframe from incidence angle pd.series
+            df_angle_pass = pd.DataFrame(data=angle_pass_TS.values, columns=(['RO']),
+                                         index=angle_pass_TS.index)
+            if not shub:
+                df_angle_pass = df_angle_pass * 0.0005 +29
+            ## round the angles to find which belongs to the same RO
+            df_angle_pass['RO_rounded'.format(orbit_pass)] = df_angle_pass['RO'].round(decimals=1)
+            unique_angles = list(df_angle_pass.dropna()['RO_rounded'].unique())
+            # if not orbit pass available just skip it
+            if not unique_angles:
+                if orbit_pass == 'ASCENDING':
+                    dict_metadata_ascending_RO_selection = {}
+                else:
+                    dict_metadata_descending_RO_selection = {}
+                continue
+
+            dict_dates_angle = dict()
+            for angle in unique_angles:
+                difference = df_angle_pass['RO'] - angle
+                dict_dates_angle.update({angle: list(
+                    df_angle_pass.loc[difference[((difference < 0.5) & (difference > -0.5))].index][
+                        'RO_rounded'].index.values)})
+
+            RO_orbit_counter = {key: len(value) for key, value in dict_dates_angle.items()}
+            RO_shallowest_angle = max(dict_dates_angle.keys())
+            # see if the orbit with shallowest angle has not a lot fewer coverages compared to the orbit with the maximum coverages. In case this orbit has more than 80% less
+            # coverage another orbit is selected
+            if RO_orbit_counter.get(RO_shallowest_angle) < int(max(list(RO_orbit_counter.values())) * 0.80):
+                RO_orbit_selection = max(RO_orbit_counter, key=lambda x: RO_orbit_counter[x])
+            else:
+                RO_orbit_selection = RO_shallowest_angle
+            list_orbit_passes = sorted(dict_dates_angle.get(RO_orbit_selection))
+            if orbit_pass == 'ASCENDING':
+                dict_metadata_ascending_RO_selection = {
+                    pd.to_datetime(list_orbit_passes[0]).strftime('%Y-%m-%d'): RO_orbit_selection}
+            else:
+                dict_metadata_descending_RO_selection = {
+                    pd.to_datetime(list_orbit_passes[0]).strftime('%Y-%m-%d'): RO_orbit_selection}
+
+        return dict_metadata_ascending_RO_selection, dict_metadata_descending_RO_selection
+
+    RO_ascending_selection_per_field = dict()
+    RO_descending_selection_per_field = dict()
+    for s in range(len(unique_ids_fields)):
+        RO_ascending_selection, RO_descending_selection = find_optimal_RO_SHUB(ts_df, ['ASCENDING','DESCENDING'], s, shub)
+        RO_ascending_selection_per_field.update({'Field_' + str(s): RO_ascending_selection})
+        RO_descending_selection_per_field.update({'Field_' + str(s): RO_descending_selection})
+
+
+
 
     #### PREPARE THE DATAFRAMES (REFORMATTING AND RESCALING) IN THE RIGHT FORMAT TO ALLOW THE USE OF THE TRAINED NN
     ts_df_prepro = rename_df_columns(ts_df, unique_ids_fields, metrics_order)

@@ -168,6 +168,61 @@ def search_conseecutive_harvest_detections(df_filtering, max_gap_prediction, ind
     output = df_filtering['times_consecutive_threshold_exceeded'].values
     return output
 
+#  Find the most suitable ascending/descending orbits based
+#  on its availability and incidence angle
+
+def find_optimal_RO(ts_df, orbit_passes, s, metrics_order, shub):
+    # TODO USE THE SAME FUNCTION FOR FINDING ORBITS WITH TERRASCOPE DATA
+    dict_metadata_ascending_RO_selection = {}
+    dict_metadata_descending_RO_selection = {}
+    for orbit_pass in orbit_passes:
+        angle_fields = ts_df.loc[:, (slice(None), metrics_order.index('sigma_{}_angle'.format(orbit_pass.lower())))]
+        angle_fields.columns = angle_fields.columns.get_level_values(0)
+        angle_pass_TS = angle_fields.iloc[:, s]
+        angle_pass_TS.index = pd.to_datetime(angle_pass_TS.index)
+        angle_pass_TS = angle_pass_TS.tz_localize(None)
+        # make dataframe from incidence angle pd.series
+        df_angle_pass = pd.DataFrame(data=angle_pass_TS.values, columns=(['RO']),
+                                     index=angle_pass_TS.index)
+        if not shub:
+            df_angle_pass = df_angle_pass * 0.0005 + 29
+        ## round the angles to find which belongs to the same RO
+        df_angle_pass['RO_rounded'.format(orbit_pass)] = df_angle_pass['RO'].round(decimals=1)
+        unique_angles = list(df_angle_pass.dropna()['RO_rounded'].unique())
+        # if not orbit pass available just skip it
+        if not unique_angles:
+            if orbit_pass == 'ASCENDING':
+                dict_metadata_ascending_RO_selection = {}
+            else:
+                dict_metadata_descending_RO_selection = {}
+            continue
+
+        dict_dates_angle = dict()
+        for angle in unique_angles:
+            difference = df_angle_pass['RO'] - angle
+            dict_dates_angle.update({angle: list(
+                df_angle_pass.loc[difference[((difference < 0.5) & (difference > -0.5))].index][
+                    'RO_rounded'].index.values)})
+
+        RO_orbit_counter = {key: len(value) for key, value in dict_dates_angle.items()}
+        RO_shallowest_angle = max(dict_dates_angle.keys())
+        # see if the orbit with shallowest angle has not a lot fewer coverages compared to the orbit with the maximum coverages. In case this orbit has more than 80% less
+        # coverage another orbit is selected
+        if RO_orbit_counter.get(RO_shallowest_angle) < int(max(list(RO_orbit_counter.values())) * 0.80):
+            RO_orbit_selection = max(RO_orbit_counter, key=lambda x: RO_orbit_counter[x])
+        else:
+            RO_orbit_selection = RO_shallowest_angle
+        list_orbit_passes = sorted(dict_dates_angle.get(RO_orbit_selection))
+        if orbit_pass == 'ASCENDING':
+            dict_metadata_ascending_RO_selection = {
+                pd.to_datetime(list_orbit_passes[0]).strftime('%Y-%m-%d'): RO_orbit_selection}
+        else:
+            dict_metadata_descending_RO_selection = {
+                pd.to_datetime(list_orbit_passes[0]).strftime('%Y-%m-%d'): RO_orbit_selection}
+
+    return dict_metadata_ascending_RO_selection, dict_metadata_descending_RO_selection
+
+
 # function to create the crop calendar information for the fields
 
 def create_crop_calendars_fields(df, ids_field, index_window_above_thr,max_gap_prediction):
@@ -221,14 +276,19 @@ def udf_cropcalendars(udf_data:UdfData):
     ts_dict = udf_data.get_structured_data_list()[0].data
     if not ts_dict: #workaround of ts_dict is empty
         return
+
     ts_df = timeseries_json_to_pandas(ts_dict)
     ts_df.index = pd.to_datetime(ts_df.index).date
 
+    # create identifiers for each field
+    some_item_for_date = next(iter(ts_dict.values()))
+    unique_ids_fields = ['Field_' + str(item) for item in np.arange(len(some_item_for_date))]
+
     # function to calculate the cropsar curve
-    ts_df_cropsar = get_cropsar_TS(ts_df, context_param_var.get('unique_ids_fields'), context_param_var.get('metrics_order'), context_param_var.get('fAPAR_rescale_Openeo'),
+    ts_df_cropsar = get_cropsar_TS(ts_df,  unique_ids_fields , context_param_var.get('metrics_order'), context_param_var.get('fAPAR_rescale_Openeo'),
                                    context_param_var.get('shub'))
     # rescale cropsar values
-    ts_df_cropsar = rescale_cropSAR(ts_df_cropsar, context_param_var.get('fAPAR_range_normalization'), context_param_var.get('unique_ids_fields'), 'cropSAR')
+    ts_df_cropsar = rescale_cropSAR(ts_df_cropsar, context_param_var.get('fAPAR_range_normalization'),  unique_ids_fields , 'cropSAR')
 
     # function to rescale the metrics based
     # on the rescaling factor of the metric
@@ -249,18 +309,27 @@ def udf_cropcalendars(udf_data:UdfData):
     NN_model_dir = context_param_var.get('path_harvest_model')
     amount_metrics_model = len(context_param_var.get('metrics_crop_event')) * context_param_var.get('window_values')
 
+    ### DEFINE THE SUITABLE ORBITS (ASCENDING/DESCENDING) FOR HARVEST DETECTION
+    RO_ascending_selection_per_field = dict()
+    RO_descending_selection_per_field = dict()
+    for s in range(len(unique_ids_fields)):
+        RO_ascending_selection, RO_descending_selection = find_optimal_RO(ts_df, ['ASCENDING', 'DESCENDING'], s, context_param_var.get('metrics_order'),
+                                                                          context_param_var.get('shub'))
+        RO_ascending_selection_per_field.update({'Field_' + str(s): RO_ascending_selection})
+        RO_descending_selection_per_field.update({'Field_' + str(s): RO_descending_selection})
+
     #### PREPARE THE DATAFRAMES (REFORMATTING AND RESCALING) IN THE
     # RIGHT FORMAT TO ALLOW THE USE OF THE TRAINED NN
-    ts_df_prepro = rename_df_columns(ts_df, context_param_var.get('unique_ids_fields'), context_param_var.get('metrics_order'))
+    ts_df_prepro = rename_df_columns(ts_df,  unique_ids_fields, context_param_var.get('metrics_order'))
 
-    ts_df_prepro = VHVV_calc_rescale(ts_df_prepro, context_param_var.get('unique_ids_fields'), context_param_var.get('VH_VV_range_normalization'))
+    ts_df_prepro = VHVV_calc_rescale(ts_df_prepro,  unique_ids_fields, context_param_var.get('VH_VV_range_normalization'))
 
     #### rescale the fAPAR to 0 and 1 and convert
     # it to values between -1 and 1
     ts_df_prepro = rescale_metrics(ts_df_prepro, context_param_var.get('fAPAR_rescale_Openeo'), context_param_var.get('fAPAR_range_normalization'),
-                                   context_param_var.get('unique_ids_fields'), 'fAPAR', context_param_var.get('shub'))
+                                   unique_ids_fields, 'fAPAR', context_param_var.get('shub'))
 
-    ro_s = {'ascending': context_param_var.get('RO_ascending_selection_per_field'), 'descending': context_param_var.get('RO_descending_selection_per_field')}
+    ro_s = {'ascending':  RO_ascending_selection_per_field, 'descending': RO_descending_selection_per_field}
 
     #### now merge the cropsar ts file with the other
     # df containing the S1 metrics
@@ -270,15 +339,25 @@ def udf_cropcalendars(udf_data:UdfData):
 
     ### create windows in the time series to extract the metrics
     # and store each window in a seperate row in the dataframe
-    ts_df_input_NN = prepare_df_NN_model(ts_df_prepro, context_param_var.get('window_values'), context_param_var.get('unique_ids_fields'), ro_s,
+    ts_df_input_NN = prepare_df_NN_model(ts_df_prepro, context_param_var.get('window_values'),  unique_ids_fields, ro_s,
                                          context_param_var.get('metrics_crop_event'))
 
     ### apply the trained NN model on the window extracts
     df_NN_prediction = apply_NN_model_crop_calendars(ts_df_input_NN, amount_metrics_model, context_param_var.get('thr_detection'),
                                                      context_param_var.get('crop_calendar_event'), NN_model_dir)
-    df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction, context_param_var.get('unique_ids_fields'), context_param_var.get('index_window_above_thr'),
+    df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction,  unique_ids_fields, context_param_var.get('index_window_above_thr'),
                                                             context_param_var.get('max_gap_prediction'))
     print(df_crop_calendars_result)
     # return the predicted crop calendar events as a dict  (json format)
-    udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=df_crop_calendars_result.to_dict(),type="dict")])
+    #udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=df_crop_calendars_result.to_dict(),type="dict")])
+
+    gjson  = context_param_var.get('gjson')
+    for s in range(len(gjson.get("features"))):
+        for c in range(df_crop_calendars_result.shape[1]):  # the amount of crop calendar events which were determined
+           gjson.get('features')[s].get('properties')[df_crop_calendars_result.columns[c]] = \
+                df_crop_calendars_result.loc[df_crop_calendars_result.index == unique_ids_fields[s]][
+                    df_crop_calendars_result.columns[c]].values[0]  # the date of the event
+
+    udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=gjson,type="json")])
+
     return udf_data
