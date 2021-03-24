@@ -9,6 +9,7 @@ from Crop_calendars.create_mask import create_mask
 from Crop_calendars.prepare_geometry import prepare_geometry,remove_small_poly
 import geojson
 import json
+from openeo.processes import eq
 
 # General approach:
 #
@@ -76,8 +77,11 @@ class Cropcalendars():
 
             all_bands = sigma_ascending.merge(sigma_descending).merge(fapar_masked)  # .merge(coherence)
         else:
-            sigma_ascending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'])
-            sigma_ascending = sigma_ascending.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True)
+            sigma_ascending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'], properties={"orbitDirection": lambda od: eq(od, "ASCENDING")})
+            sigma_ascending = sigma_ascending.sar_backscatter(coefficient="sigma0-ellipsoid",local_incidence_angle=True)
+            sigma_descending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'], properties = {"orbitDirection": lambda od: eq(od, "DESCENDING")})
+            sigma_descending = sigma_descending.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True).resample_cube_spatial(sigma_ascending)
+
             S2mask = create_mask(self._eoconn, scl_layer_band='SENTINEL2_L2A_SENTINELHUB:SCL')
             S2_bands = self._eoconn.load_collection('SENTINEL2_L2A_SENTINELHUB',bands=["B03", "B04", "B08", "sunAzimuthAngles", "sunZenithAngles",
                                                      "viewAzimuthMean", "viewZenithMean"])
@@ -87,7 +91,7 @@ class Cropcalendars():
             udf = udf.replace('$BIOPAR', "'{}'".format('FAPAR'))
             fapar_masked = S2_bands_mask.reduce_bands_udf(udf)
             fapar_masked = fapar_masked.add_dimension('bands', label = 'band_0', type = 'bands')
-            all_bands = sigma_ascending.merge_cubes(sigma_ascending).merge_cubes(fapar_masked)
+            all_bands = sigma_ascending.merge_cubes(sigma_descending).merge_cubes(fapar_masked)
 
         return all_bands
 
@@ -148,10 +152,10 @@ class Cropcalendars():
 
     def generate_cropcalendars_local(self, start, end, gjson_path):
         timeseries = self.generate_cropcalendars_workflow(start, end, gjson_path, run_local= True)
-        #timeseries = timeseries.execute()
-        # with open(r"S:\eshape\tmp\harvest_detector\Field_BE\Field_BE_TS_20190101_20190731.json", 'w') as json_file:
-        #     json.dump(timeseries, json_file)
-        with open(r"S:\eshape\tmp\harvest_detector\Field_BE\Field_BE_TS_20190101_20190731.json", 'r') as json_file:
+        timeseries = timeseries.execute()
+        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction.json", 'w') as json_file:
+            json.dump(timeseries, json_file)
+        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction.json", 'r') as json_file:
             ts = json.load(json_file)
 
         ts_dict = ts
