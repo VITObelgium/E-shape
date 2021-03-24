@@ -25,7 +25,10 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     index_S1_descending = metrics_order.index('sigma_descending_VH')
     df_S1_descending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_S1_descending), str(index_S1_descending+1), str(index_S1_descending +2)])].sort_index().T
     if Spark:
-        cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
+        if shub:
+            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending, scale=0, offset=0)
+        else:
+            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date
     return cropsar_df
