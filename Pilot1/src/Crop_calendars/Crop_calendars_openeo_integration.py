@@ -101,9 +101,9 @@ class Cropcalendars():
         # SHOULD BE EXTRACTED FOR THE CROP CALENDARS
         with open(gjson_path) as f:
             gj = geojson.load(f)
-        ### Buffer the fields 10 m inwards before requesting the TS from OpenEO
+        # ### Buffer the fields 10 m inwards before requesting the TS from OpenEO
         polygons_inw_buffered, poly_too_small_buffer = prepare_geometry(gj)
-        #TODO this is a bit confusing: I woud expect to continue with polygons_inw_buffered here
+        # #TODO this is a bit confusing: I woud expect to continue with polygons_inw_buffered here
         gj = remove_small_poly(gj, poly_too_small_buffer)
 
         return gj,polygons_inw_buffered
@@ -111,15 +111,15 @@ class Cropcalendars():
     ##### FUNCTION TO BUILD PROCESS GRAPH NEEDED FOR HARVEST PREDICTIONS
     def generate_cropcalendars_workflow(self, start, end, gjson_path, run_local = False):
 
-            gj, polygons_inw_buffered = self.load_geometry(gjson_path)
-            geo = shapely.geometry.GeometryCollection(
-                [shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
+            #gj = self.load_geometry(gjson_path) #, polygons_inw_buffered
+            # geo = shapely.geometry.GeometryCollection(
+            #     [shapely.geometry.shape(feature).buffer(0) for feature in polygons_inw_buffered])
 
             # get the datacube containing the time series data
             bands_ts = self.get_bands(self.shub)
 
             ##### POST PROCESSING TIMESERIES USING A UDF
-            timeseries = bands_ts.filter_temporal(start,end).polygonal_mean_timeseries(geo)
+            timeseries = bands_ts.filter_temporal(start,end).polygonal_mean_timeseries(gjson_path)
             if run_local:
                 return timeseries
 

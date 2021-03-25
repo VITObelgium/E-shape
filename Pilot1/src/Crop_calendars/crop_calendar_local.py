@@ -22,7 +22,7 @@ fAPAR_range_normalization= [0,1]
 fAPAR_rescale_Openeo= 0.005
 coherence_rescale_Openeo= 0.004
 max_gap_prediction = 24 # the max amount of days that are allowed between harvest detection predictions
-shub  = False
+shub  = True
 
 
 metrics_order =  ['sigma_ascending_VH', 'sigma_ascending_VV','sigma_ascending_angle','sigma_descending_VH', 'sigma_descending_VV','sigma_descending_angle', 'fAPAR']  # The index position of the metrics returned from the OpenEO datacube
@@ -51,7 +51,7 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     if Spark:
         cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
     else:
-        cropsar_df = pd.read_csv(r"S:\eshape\tmp\harvest_detector\Field_BE\Field_BE_TS_20190101_20190731_cropsar.csv")
+        cropsar_df = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_cropsar_orbit_direction.csv")
         cropsar_df = cropsar_df.set_index(cropsar_df.columns[0])
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date
@@ -289,7 +289,7 @@ def udf_cropcalendars_local(ts_dict):
             for angle in unique_angles:
                 difference = df_angle_pass['RO'] - angle
                 dict_dates_angle.update({angle: list(
-                    df_angle_pass.loc[difference[((difference < 0.5) & (difference > -0.5))].index][
+                    df_angle_pass.loc[difference[((difference < 0.3) & (difference > -0.3))].index][
                         'RO_rounded'].index.values)})
 
             RO_orbit_counter = {key: len(value) for key, value in dict_dates_angle.items()}

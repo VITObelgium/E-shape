@@ -201,7 +201,7 @@ def find_optimal_RO(ts_df, orbit_passes, s, metrics_order, shub):
         for angle in unique_angles:
             difference = df_angle_pass['RO'] - angle
             dict_dates_angle.update({angle: list(
-                df_angle_pass.loc[difference[((difference < 0.5) & (difference > -0.5))].index][
+                df_angle_pass.loc[difference[((difference < 0.3) & (difference > -0.3))].index][
                     'RO_rounded'].index.values)})
 
         RO_orbit_counter = {key: len(value) for key, value in dict_dates_angle.items()}

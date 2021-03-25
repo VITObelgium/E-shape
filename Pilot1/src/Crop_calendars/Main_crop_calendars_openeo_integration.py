@@ -36,22 +36,22 @@ def main():
     #### USER SPECIFIC PARARMETERS
     # the directory of the file (geojson format) which is going
     # to be used to determine the specific crop calendar event
-    gjson_path = r"S:\eshape\tmp\harvest_detector\Field_BE\Field_BE.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
+    gjson_path =r'' #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
     ## define the time period for extracting the time series data
     start = '2019-01-01'
     end = '2019-07-31'
     # the folder in which you want to store the output result
-    outdir = r'S:\eshape\tmp\harvest_detector\Field_BE'
+    outdir = r''
 
     #the name of the output file containing the crop calendar
     #info for the fields
-    outname = r'Test_UDP_implementation.json'#r'Extract_LPIS_test.json'
+    outname = r'Test_fields_after_RO_selection_and_orbit_direction_SHUB.json'#r'Extract_LPIS_test.json'
 
 
     ###### INITIATE THE CLASS AND RUN THE CROP CALENDAR MODEL
     # The output contains an updated geojson file with
     # in its properties the derived crop calendar events
-    gj_cropcalendars_info = generator.generate_cropcalendars(start = start, end = end, gjson_path = gjson_path) # returns the geometry collection with as attribute the crop calendars per field ID
+    gj_cropcalendars_info = generator.generate_cropcalendars_local(start = start, end = end, gjson_path = gjson_path) # returns the geometry collection with as attribute the crop calendars per field ID
     ### The output file location (json format) which you want to use to store the result
     with open(os.path.join(outdir, outname),"w") as file:
         file.write(json.dumps(gj_cropcalendars_info))
