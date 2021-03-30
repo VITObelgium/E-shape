@@ -7,7 +7,7 @@ from openeo.rest.conversions import timeseries_json_to_pandas
 from openeo_udf.api.udf_data import UdfData
 from openeo_udf.api.structured_data import StructuredData
 from cropsar.preprocessing.retrieve_timeseries_openeo import run_cropsar_dataframes
-
+import geojson
 
 from tensorflow.keras.models import load_model
 # import geojson
@@ -26,7 +26,7 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     df_S1_descending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_S1_descending), str(index_S1_descending+1), str(index_S1_descending +2)])].sort_index().T
     if Spark:
         if shub:
-            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending, scale=0, offset=0)
+            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending, scale=1, offset=0)
         else:
             cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
@@ -354,7 +354,12 @@ def udf_cropcalendars(udf_data:UdfData):
     # return the predicted crop calendar events as a dict  (json format)
     #udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=df_crop_calendars_result.to_dict(),type="dict")])
 
-    gjson  = context_param_var.get('gjson')
+    gjson_path  = context_param_var.get('gjson')
+    if type(gjson_path) == str:
+        with open(gjson_path) as f:
+            gjson = geojson.load(f)
+    else:
+        gjson= gjson_path
     for s in range(len(gjson.get("features"))):
         for c in range(df_crop_calendars_result.shape[1]):  # the amount of crop calendar events which were determined
            gjson.get('features')[s].get('properties')[df_crop_calendars_result.columns[c]] = \

@@ -44,7 +44,7 @@ class Cropcalendars():
         if(connection == None):
 
             self._eoconn = openeo\
-                .connect('https://openeo.vito.be/openeo/1.0.0')\
+                .connect('https://openeo-dev.vito.be/openeo/1.0.0')\
                 .authenticate_basic('bontek', 'bontek123')
         else:
             self._eoconn = connection
@@ -69,17 +69,15 @@ class Cropcalendars():
             fapar_masked = fapar.mask(S2mask)
 
             sigma_ascending = self._eoconn.load_collection('S1_GRD_SIGMA0_ASCENDING', bands=["VH", "VV", "angle"])
-            sigma_descending = self._eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING',
-                                                            bands=["VH", "VV", "angle"]).resample_cube_spatial(
-                sigma_ascending)
+            sigma_descending = self._eoconn.load_collection('S1_GRD_SIGMA0_DESCENDING',bands=["VH", "VV", "angle"]).resample_cube_spatial(sigma_ascending)
 
             fapar_masked = fapar_masked.resample_cube_spatial(sigma_ascending)
 
             all_bands = sigma_ascending.merge(sigma_descending).merge(fapar_masked)  # .merge(coherence)
         else:
-            sigma_ascending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'], properties={"orbitDirection": lambda od: eq(od, "ASCENDING")})
+            sigma_ascending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'],properties={"orbitDirection": lambda od: eq(od, "ASCENDING")})
             sigma_ascending = sigma_ascending.sar_backscatter(coefficient="sigma0-ellipsoid",local_incidence_angle=True)
-            sigma_descending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'], properties = {"orbitDirection": lambda od: eq(od, "DESCENDING")})
+            sigma_descending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'], properties={"orbitDirection": lambda od: eq(od, "DESCENDING")})
             sigma_descending = sigma_descending.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True).resample_cube_spatial(sigma_ascending)
 
             S2mask = create_mask(self._eoconn, scl_layer_band='SENTINEL2_L2A_SENTINELHUB:SCL')
@@ -131,7 +129,7 @@ class Cropcalendars():
                                    'fAPAR_range_normalization': self.fAPAR_range_normalization, 'fAPAR_rescale_Openeo': self.fAPAR_rescale_Openeo,
                                    'index_window_above_thr': self.index_window_above_thr,
                                    'metrics_order': self.metrics_order, 'path_harvest_model': self.path_harvest_model,
-                                   'shub': self.shub, 'max_gap_prediction': self.max_gap_prediction, 'gjson': gj})
+                                   'shub': self.shub, 'max_gap_prediction': self.max_gap_prediction, 'gjson': gjson_path})
 
             crop_calendars_graph = timeseries.process("run_udf",data = timeseries._pg, udf = udf, runtime = 'Python', context = context_to_udf)
             # crop_calendars_df = pd.DataFrame.from_dict(crop_calendars)
@@ -153,9 +151,9 @@ class Cropcalendars():
     def generate_cropcalendars_local(self, start, end, gjson_path):
         timeseries = self.generate_cropcalendars_workflow(start, end, gjson_path, run_local= True)
         timeseries = timeseries.execute()
-        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction.json", 'w') as json_file:
+        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction2.json", 'w') as json_file:
             json.dump(timeseries, json_file)
-        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction.json", 'r') as json_file:
+        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction2.json", 'r') as json_file:
             ts = json.load(json_file)
 
         ts_dict = ts

@@ -1,6 +1,8 @@
 import os
 from Crop_calendars.Crop_calendars_openeo_integration import Cropcalendars
 import json
+import geojson
+import shapely
 def main():
     ######## DEFAULT PARAMETERS ##########
     metrics_order = ['sigma_ascending_VH', 'sigma_ascending_VV','sigma_ascending_angle','sigma_descending_VH', 'sigma_descending_VV','sigma_descending_angle', 'fAPAR']
@@ -36,16 +38,24 @@ def main():
     #### USER SPECIFIC PARARMETERS
     # the directory of the file (geojson format) which is going
     # to be used to determine the specific crop calendar event
-    gjson_path =r'' #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
+    gjson_path =r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
+
+    """ IF WANT TO GIVE THE LOADED GEOJSON FILE AS INPUT """
+    with open(gjson_path) as f:
+        gj = geojson.load(f)
+    gjson_path = shapely.geometry.GeometryCollection([shapely.geometry.shape(feature.geometry).buffer(0) for feature in gj.features])
+
+
+
     ## define the time period for extracting the time series data
     start = '2019-01-01'
     end = '2019-07-31'
     # the folder in which you want to store the output result
-    outdir = r''
+    outdir = r'S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE'
 
     #the name of the output file containing the crop calendar
     #info for the fields
-    outname = r'Test_fields_after_RO_selection_and_orbit_direction_SHUB.json'#r'Extract_LPIS_test.json'
+    outname = r'Test_fields_after_RO_selection_and_orbit_direction_SHUB_gjson_load_udf.json'#r'Extract_LPIS_test.json'
 
 
     ###### INITIATE THE CLASS AND RUN THE CROP CALENDAR MODEL
