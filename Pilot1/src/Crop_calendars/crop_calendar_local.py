@@ -51,7 +51,7 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     if Spark:
         cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
     else:
-        cropsar_df = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_cropsar_orbit_direction.csv")
+        cropsar_df = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_Niels_TS_20190101_20191231.csv")
         cropsar_df = cropsar_df.set_index(cropsar_df.columns[0])
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date
@@ -199,6 +199,10 @@ def create_crop_calendars_fields(df, ids_field, index_window_above_thr, max_gap_
                                                                                             index_window_above_thr)
 
                 df_filtered_id_pass['count_harvest_consecutive_exceeded'] = count_harvest_consecutive_exceeded
+
+                # check if there is still a valid harvest prediction after checking on consecutive predictions
+                if df_filtered_id_pass.loc[df_filtered_id_pass['count_harvest_consecutive_exceeded'] == index_window_above_thr+1].empty:
+                    continue
 
                 # select the harvest date the the first time match the requirements
                 df_crop_calendars_orbit_pass.append(pd.DataFrame(data=pd.to_datetime

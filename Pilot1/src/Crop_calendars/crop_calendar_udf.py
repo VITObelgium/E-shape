@@ -141,7 +141,7 @@ def apply_NN_model_crop_calendars(df, amount_metrics_model, thr_detection, crop_
     return df
 
 # function to search which harvest predictions are consecutive and count the amount of consecutive prediction for final harvest detection
-def search_conseecutive_harvest_detections(df_filtering, max_gap_prediction, index_window_above_thr):
+def search_consecutive_harvest_detections(df_filtering, max_gap_prediction, index_window_above_thr):
     ### check for consecutive harvest detections:
 
     # first calculate the difference in days between the next harvest detection a shift of one position upward is needed for this
@@ -244,11 +244,15 @@ def create_crop_calendars_fields(df, ids_field, index_window_above_thr,max_gap_p
                         df_filtered_id['NN_model_detection_Harvest'] == 1)]
             if not df_filtered_id_pass.shape[0] < index_window_above_thr + 1:
                 ## filter on the suitable harvest detections (based on the amount of times harvest is predicted within the max_gap_prediction threshold
-                count_harvest_consecutive_exceeded = search_conseecutive_harvest_detections(df_filtered_id_pass,
+                count_harvest_consecutive_exceeded = search_consecutive_harvest_detections(df_filtered_id_pass,
                                                                                             max_gap_prediction,
                                                                                             index_window_above_thr)
 
                 df_filtered_id_pass['count_harvest_consecutive_exceeded'] = count_harvest_consecutive_exceeded
+
+                # check if there is still a valid harvest prediction after checking on consecutive predictions
+                if df_filtered_id_pass.loc[df_filtered_id_pass['count_harvest_consecutive_exceeded'] == index_window_above_thr + 1].empty:
+                    continue
 
                 # select the harvest date the the first time match the requirements
                 df_crop_calendars_orbit_pass.append(pd.DataFrame(data=pd.to_datetime(df_filtered_id_pass.loc[
