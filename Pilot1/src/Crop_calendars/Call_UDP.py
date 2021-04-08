@@ -16,7 +16,7 @@ outname = r'Field_BE_harvest_prediction_20190101_20191231' # the name of the out
 
 
 """ LOAD THE GEOJSON FILE LOCALLY IF IT IS STORED ON THE PUBLIC DRIVE OF THE TERRASCOPE VM
-    OTHERWISE LOAD THE GEOJSON FILE LOCALLLY"""
+    OTHERWISE LOAD THE GEOJSON FILE LOCALLY"""
 if not "data" in gjson_path and not "Public" in gjson_path:
     with open(gjson_path) as f:
         gjson_path = geojson.load(f)
