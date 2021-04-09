@@ -145,8 +145,8 @@ class Cropcalendars():
         #     f.close()
         # fwrite(os.path.join(r'S:\eshape\Pilot 1\results\Harvest_date\UDP', 'cropcalendar_udp_version_2021_03_16.json'), workflow.to_json())
 
-        crop_calendars = workflow.send_job().start_and_wait().get_result().load_json()
-        return crop_calendars
+        crop_calendars = workflow.send_job().start_and_wait().get_results()
+        return crop_calendars.get_asset('out').load_json()
 
     def generate_cropcalendars_local(self, start, end, gjson_path):
         timeseries = self.generate_cropcalendars_workflow(start, end, gjson_path, run_local= True)

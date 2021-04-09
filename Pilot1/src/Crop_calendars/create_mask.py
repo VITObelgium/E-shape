@@ -1,13 +1,12 @@
 import numpy as np
-import scipy
-from scipy import signal
+import scipy.signal
 
 
 def create_mask(session, scl_layer_band="TERRASCOPE_S2_TOC_V2:SCENECLASSIFICATION_20M"):
     if scl_layer_band==None:
         scl_layer_band = "TERRASCOPE_S2_TOC_V2:SCENECLASSIFICATION_20M"
     layer_band = scl_layer_band.split(':')
-    s2_sceneclassification = session.imagecollection(layer_band[0], bands=[layer_band[1]])
+    s2_sceneclassification = session.load_collection(layer_band[0], bands=[layer_band[1]])
 
     classification = s2_sceneclassification.band(layer_band[1])
 
