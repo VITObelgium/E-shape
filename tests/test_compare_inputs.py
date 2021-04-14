@@ -38,6 +38,7 @@ class TestInputs(unittest.TestCase):
         #print("    NAN PERCENT:          ", 1.-(df0f<1000000.).value_counts(True)[True], 1.-(df1f<1000000.).value_counts(True)[True])
         self.assertTrue(oor<max_oor_percent/100.)
 
+
     def test_TimeSeries(self):
         
         # config
@@ -67,5 +68,4 @@ class TestInputs(unittest.TestCase):
                 print("  VAR "+str(ivar))  
                 self.compareSignals(ref[i][ivar], res[i][ivar], 1., 1.e-5)
 
-        print("DONE")
 
