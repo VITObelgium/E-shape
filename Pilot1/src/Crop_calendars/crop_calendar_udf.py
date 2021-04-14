@@ -10,6 +10,7 @@ from cropsar.preprocessing.retrieve_timeseries_openeo import run_cropsar_datafra
 import geojson
 
 from tensorflow.keras.models import load_model
+from pathlib import Path
 # import geojson
 # import uuid
 # import json
@@ -278,11 +279,17 @@ def create_crop_calendars_fields(df, ids_field, index_window_above_thr,max_gap_p
     return df_crop_calendars
 
 def udf_cropcalendars(udf_data:UdfData):
+    
     context_param_var = udf_data.user_context
     print(context_param_var)
     ts_dict = udf_data.get_structured_data_list()[0].data
     if not ts_dict: #workaround of ts_dict is empty
         return
+
+    # debug save if set
+    save_debug_path=context_param_var.get('save_debug_path', None)
+    if save_debug_path is not None:
+        Path(save_debug_path).mkdir(parents=True, exist_ok=True)
 
     ts_df = timeseries_json_to_pandas(ts_dict)
     ts_df.index = pd.to_datetime(ts_df.index).date
@@ -296,6 +303,10 @@ def udf_cropcalendars(udf_data:UdfData):
                                    context_param_var.get('shub'))
     # rescale cropsar values
     ts_df_cropsar = rescale_cropSAR(ts_df_cropsar, context_param_var.get('fAPAR_range_normalization'),  unique_ids_fields , 'cropSAR')
+
+    # debug save if set
+    if save_debug_path is not None:
+        ts_df_cropsar.to_json(Path(save_debug_path,"input_df_cropsar.json"))
 
     # function to rescale the metrics based
     # on the rescaling factor of the metric
@@ -344,6 +355,10 @@ def udf_cropcalendars(udf_data:UdfData):
     ts_df_prepro = ts_df_prepro.reindex(date_range)  # need to set the index axis on the same frequency
     ts_df_prepro = pd.concat([ts_df_cropsar, ts_df_prepro], axis=1) # the columns of the cropsar df need to be the first ones in the new df to ensure the correct position for applying the NN model
 
+    # debug save if set
+    if save_debug_path is not None:
+        ts_df_prepro.to_json(Path(save_debug_path,"input_df_model.json"))
+
     ### create windows in the time series to extract the metrics
     # and store each window in a seperate row in the dataframe
     ts_df_input_NN = prepare_df_NN_model(ts_df_prepro, context_param_var.get('window_values'),  unique_ids_fields, ro_s,
@@ -366,7 +381,7 @@ def udf_cropcalendars(udf_data:UdfData):
         gjson= gjson_path
     for s in range(len(gjson.get("features"))):
         for c in range(df_crop_calendars_result.shape[1]):  # the amount of crop calendar events which were determined
-           gjson.get('features')[s].get('properties')[df_crop_calendars_result.columns[c]] = \
+            gjson.get('features')[s].get('properties')[df_crop_calendars_result.columns[c]] = \
                 df_crop_calendars_result.loc[df_crop_calendars_result.index == unique_ids_fields[s]][
                     df_crop_calendars_result.columns[c]].values[0]  # the date of the event
 
