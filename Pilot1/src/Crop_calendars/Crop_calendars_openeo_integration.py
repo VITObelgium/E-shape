@@ -39,6 +39,9 @@ class Cropcalendars():
         self.max_gap_prediction = max_gap_prediction
         self.shub = shub
         self.index_window_above_thr = index_window_above_thr
+        
+        self.fapar_udf_path = 'UDF_biopar_calculation_shub_3_band.py'
+        self.crop_calendar_udf_path = 'crop_calendar_udf.py'
 
         # openeo connection
         if(connection == None):
@@ -85,7 +88,7 @@ class Cropcalendars():
                                                      "viewAzimuthMean", "viewZenithMean"])
             S2_bands_mask = S2_bands.mask(S2mask)
             S2_bands_mask = S2_bands_mask.resample_cube_spatial(sigma_ascending)
-            udf = self.load_udf('UDF_biopar_calculation_shub_3_band.py')
+            udf = self.load_udf(self.fapar_udf_path)
             udf = udf.replace('$BIOPAR', "'{}'".format('FAPAR'))
             fapar_masked = S2_bands_mask.reduce_bands_udf(udf)
             fapar_masked = fapar_masked.add_dimension('bands', label = 'band_0', type = 'bands')
@@ -121,7 +124,7 @@ class Cropcalendars():
             if run_local:
                 return timeseries
 
-            udf = self.load_udf('crop_calendar_udf.py')
+            udf = self.load_udf(self.crop_calendar_udf_path)
 
             # Default parameters are ingested in the UDF
             context_to_udf = dict({'window_values': self.window_values, 'thr_detection': self.thr_detection, 'crop_calendar_event': self.crop_calendar_event,
