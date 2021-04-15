@@ -154,9 +154,9 @@ class Cropcalendars():
     def generate_cropcalendars_local(self, start, end, gjson_path):
         timeseries = self.generate_cropcalendars_workflow(start, end, gjson_path, run_local= True)
         timeseries = timeseries.execute()
-        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction2.json", 'w') as json_file:
+        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE_test\TS\Field_BE_TS_20190101_20191231_fixorbits.json", 'w') as json_file:
             json.dump(timeseries, json_file)
-        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE_TS_20190101_20190731_orbit_direction2.json", 'r') as json_file:
+        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE_test\TS\Field_BE_TS_20190101_20191231_fixorbits.json", 'r') as json_file:
             ts = json.load(json_file)
 
         ts_dict = ts
