@@ -306,7 +306,7 @@ def udf_cropcalendars(udf_data:UdfData):
 
     # debug save if set
     if save_debug_path is not None:
-        ts_df_cropsar.to_json(Path(save_debug_path,"input_df_cropsar.json"))
+        ts_df_cropsar.to_json(Path(save_debug_path,"WIG_fields_TS_20190101_20191231_cropsar_input_model.json"))
 
     # function to rescale the metrics based
     # on the rescaling factor of the metric
@@ -357,7 +357,7 @@ def udf_cropcalendars(udf_data:UdfData):
 
     # debug save if set
     if save_debug_path is not None:
-        ts_df_prepro.to_json(Path(save_debug_path,"input_df_model.json"))
+        ts_df_prepro.to_json(Path(save_debug_path,"WIG_fields_TS_20190101_20191231_input_df_model.json"))
 
     ### create windows in the time series to extract the metrics
     # and store each window in a seperate row in the dataframe
