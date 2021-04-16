@@ -4,6 +4,11 @@ import pandas
 import json
 from Crop_calendars.Crop_calendars_openeo_integration import Cropcalendars
 import geojson
+import sys
+import os
+import shapely
+sys.path.append(os.path.realpath(__file__))
+
 
     
 class TestInputs(unittest.TestCase):
@@ -42,23 +47,27 @@ class TestInputs(unittest.TestCase):
     def test_TimeSeries(self):
         
         # config
-        with open("tests/resources/Field_BE.geojson") as f: gj = geojson.load(f)
+        # TODO used the feature collection stored in self.context as soon as the openeo can deal with this type of input
+        with open('resources/WIG_harvest_detection_fields.geojson') as f:
+            gj = geojson.load(f)
+        gjson_path = shapely.geometry.GeometryCollection(
+            [shapely.geometry.shape(feature.geometry).buffer(0) for feature in gj.features])
         start = '2019-01-01'
-        end = '2019-07-31'
+        end = '2019-12-31'
         
         # query openeo
         cp=Cropcalendars(None, None, None, None, None, None, None, None, None, None, True, None, None)
-        cp.fapar_udf_path= 'Pilot1/src/Crop_calendars/UDF_biopar_calculation_shub_3_band.py'
-        inppg=cp.generate_cropcalendars_workflow(start, end, gj, run_local=True)
+        cp.fapar_udf_path= 'resources/UDF_biopar_calculation_shub_3_band.py'
+        inppg=cp.generate_cropcalendars_workflow(start, end, gjson_path, run_local=True)
         result=inppg.execute()
         res=self.processTS(result)
         
         # reference
-        with open("tests/resources/timeseries_shub_ref.json") as f: 
+        with open("resources/WIG_fields_TS_SHUB_20190101_20191231.json") as f:
             ref= self.processTS(json.load(f))
         
         # FOR UPDATING REFERENCE DTA, KEEP IT COMMENTED!
-        #with open("tests/resources/timeseries_shub_ref.json","w") as f: 
+        #with open("tests/resources/Field_BE_TS_SHUB_output.json","w") as f:
         #    res= self.processTS(json.load(f))
 
         # check closeness

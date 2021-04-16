@@ -49,9 +49,9 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     df_S1_descending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([index_S1_descending, index_S1_descending+1, index_S1_descending +2])].sort_index().T
     throw_if_empty(df_S1_descending)
     if Spark:
-        cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
+        cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending, scale=1, offset=0)
     else:
-        cropsar_df = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_Niels_TS_20190101_20191231.csv")
+        cropsar_df = pd.read_csv(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE_test\TS\WIG_fields_TS_20190101_20191231_cropsar.csv")
         cropsar_df = cropsar_df.set_index(cropsar_df.columns[0])
         cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date
@@ -187,7 +187,7 @@ def create_crop_calendars_fields(df, ids_field, index_window_above_thr, max_gap_
     orbit_passes = [r'ascending', r'descending']
     for id in ids_field:  ### here can insert a loop for the different crop calendar events for that field
         df_crop_calendars_orbit_pass = []  # the dataframe that will temporarily store the predicted crop calendar event per orbit pass
-        #TODO should be updated because now the mean date for both ascending and descending orbits are merged
+        #TODO fix in case there is a big gap between ascending and descending prediction
         df_filtered_id = df[df.index.str.contains(id)]
         for orbit_pass in orbit_passes:
             df_filtered_id_pass = df_filtered_id[(df_filtered_id.index.str.contains(orbit_pass)) & (df_filtered_id['NN_model_detection_Harvest'] == 1)]
