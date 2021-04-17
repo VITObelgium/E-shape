@@ -40,9 +40,11 @@ class Cropcalendars():
         self.shub = shub
         self.index_window_above_thr = index_window_above_thr
         
-        self.fapar_udf_path = 'UDF_biopar_calculation_shub_3_band.py'
-        self.crop_calendar_udf_path = 'crop_calendar_udf.py'
-
+        # assuming UDF-s packaged in the same folder as driver
+        basedir=Path(__file__).parent
+        self.fapar_udf_path = Path(basedir,'UDF_biopar_calculation_shub_3_band.py')
+        self.crop_calendar_udf_path = Path(basedir,'crop_calendar_udf.py')
+        
         # openeo connection
         if(connection == None):
 
