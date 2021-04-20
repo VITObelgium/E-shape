@@ -63,7 +63,7 @@ class Cropcalendars():
         return str(Path(relative_path))
 
     def load_udf(self, relative_path):
-        with open(self.get_resource(relative_path), 'r+', encoding="utf8") as f:
+        with open(self.get_resource(relative_path), 'r', encoding="utf8") as f:
             return f.read()
 
     def get_bands(self, shub = False):
