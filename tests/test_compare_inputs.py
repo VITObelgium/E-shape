@@ -57,6 +57,7 @@ class TestInputs(unittest.TestCase):
         
         # query openeo
         cp=Cropcalendars(None, None, None, None, None, None, None, None, None, None, True, None, None)
+        # TODO check if default udf path nowworks within unittests as well
         cp.fapar_udf_path= 'resources/UDF_biopar_calculation_shub_3_band.py'
         inppg=cp.generate_cropcalendars_workflow(start, end, gjson_path, run_local=True)
         result=inppg.execute()
