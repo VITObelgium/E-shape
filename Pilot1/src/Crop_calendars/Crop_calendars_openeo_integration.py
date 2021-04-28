@@ -49,7 +49,7 @@ class Cropcalendars():
         if(connection == None):
 
             self._eoconn = openeo\
-                .connect('https://openeo-dev.vito.be/openeo/1.0.0')\
+                .connect('https://openeo.vito.be/openeo/1.0.0')\
                 .authenticate_basic('bontek', 'bontek123')
         else:
             self._eoconn = connection
@@ -85,10 +85,13 @@ class Cropcalendars():
             sigma_descending = self._eoconn.load_collection('SENTINEL1_GRD', bands=['VH', 'VV'], properties={"orbitDirection": lambda od: eq(od, "DESCENDING")})
             sigma_descending = sigma_descending.sar_backscatter(coefficient="sigma0-ellipsoid", local_incidence_angle=True).resample_cube_spatial(sigma_ascending)
 
-            S2mask = create_mask(self._eoconn, scl_layer_band='SENTINEL2_L2A_SENTINELHUB:SCL')
+            #S2mask = create_mask(self._eoconn, scl_layer_band='SENTINEL2_L2A_SENTINELHUB:SCL')
             S2_bands = self._eoconn.load_collection('SENTINEL2_L2A_SENTINELHUB',bands=["B03", "B04", "B08", "sunAzimuthAngles", "sunZenithAngles",
-                                                     "viewAzimuthMean", "viewZenithMean"])
-            S2_bands_mask = S2_bands.mask(S2mask)
+                                                     "viewAzimuthMean", "viewZenithMean", "SCL"])
+            S2_bands_mask = S2_bands.process("mask_scl_dilation", data=S2_bands,
+                                                   scl_band_name="SCL")
+
+            #S2_bands_mask = S2_bands.mask(S2mask)
             S2_bands_mask = S2_bands_mask.resample_cube_spatial(sigma_ascending)
             udf = self.load_udf(self.fapar_udf_path)
             udf = udf.replace('$BIOPAR', "'{}'".format('FAPAR'))
