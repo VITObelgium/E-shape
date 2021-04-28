@@ -38,30 +38,30 @@ def main():
     #### USER SPECIFIC PARARMETERS
     # the directory of the file (geojson format) which is going
     # to be used to determine the specific crop calendar event
-    gjson_path =r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE\Field_BE.geojson" #Path("../../Tests/Cropcalendars/EX_files/WIG_harvest_detection_fields.geojson")
+    gjson_path = r"/data/users/Public/bontek/e_shape/Field_harvest_test/KMC_Bounds_2019_WGS84.geojson" #r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE_test\Fields\Field_BE.geojson"   #r"/data/users/Public/nielsh/WIG_harvest_detection_fields.geojson"
 
     """ IF WANT TO GIVE THE LOADED GEOJSON FILE AS INPUT """
-    with open(gjson_path) as f:
-        gj = geojson.load(f)
-    gjson_path = shapely.geometry.GeometryCollection([shapely.geometry.shape(feature.geometry).buffer(0) for feature in gj.features])
+    # with open(gjson_path) as f:
+    #     gj = geojson.load(f)
+    # gjson_path = shapely.geometry.GeometryCollection([shapely.geometry.shape(feature.geometry).buffer(0) for feature in gj.features])
 
 
 
     ## define the time period for extracting the time series data
-    start = '2019-01-01'
-    end = '2019-07-31'
+    start = '2019-05-01'
+    end = '2019-12-31'
     # the folder in which you want to store the output result
-    outdir = r'S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE'
+    outdir = r'S:\Nextland\SoilEssentials\Products\Phenology\Harvest_date'
 
     #the name of the output file containing the crop calendar
     #info for the fields
-    outname = r'Test_fields_after_RO_selection_and_orbit_direction_SHUB_gjson_load_udf.json'#r'Extract_LPIS_test.json'
+    outname = r'Harvest_predictionKMC_Bounds_2019_20190501_20191231.json'#r'Extract_LPIS_test.json'
 
 
     ###### INITIATE THE CLASS AND RUN THE CROP CALENDAR MODEL
     # The output contains an updated geojson file with
     # in its properties the derived crop calendar events
-    gj_cropcalendars_info = generator.generate_cropcalendars_local(start = start, end = end, gjson_path = gjson_path) # returns the geometry collection with as attribute the crop calendars per field ID
+    gj_cropcalendars_info = generator.generate_cropcalendars(start = start, end = end, gjson_path = gjson_path) # returns the geometry collection with as attribute the crop calendars per field ID
     ### The output file location (json format) which you want to use to store the result
     with open(os.path.join(outdir, outname),"w") as file:
         file.write(json.dumps(gj_cropcalendars_info))
