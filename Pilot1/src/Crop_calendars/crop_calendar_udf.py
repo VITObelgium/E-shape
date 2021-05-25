@@ -99,6 +99,9 @@ def prepare_df_NN_model(df, window_values, ids_field, ro_s, metrics_crop_event):
             # the amount of windows that can be created in the time period
             moving_window_steps = np.arange(0, df_orbit.shape[
                 0] - window_values - 1)
+            if len(moving_window_steps) == 0:
+                print('TIME RANGE IS TOO SMALL FOR HARVEST PREDICTION')
+                continue
             # TODO DEFINE A PERIOD AROUND THE EVENT OF WHICH WINDOWS WILL BE SAMPLED TO AVOID OFF-SEASON EVENT DETECTION
 
             ### data juggling so that the data of a window is written in a single row
@@ -129,7 +132,9 @@ def prepare_df_NN_model(df, window_values, ids_field, ro_s, metrics_crop_event):
                 df_id_window = pd.concat([df_id_window, middle_date_window], axis=1)
                 df_harvest_model.append(df_id_window)
             o += 1
-
+    if not df_harvest_model:
+        df_harvest_model = None
+        return df_harvest_model
     df_harvest_model = pd.concat(df_harvest_model, axis=0)
     df_harvest_model.index.name = 'ID_field'
     return df_harvest_model
@@ -371,15 +376,21 @@ def udf_cropcalendars(udf_data:UdfData):
     # and store each window in a seperate row in the dataframe
     ts_df_input_NN = prepare_df_NN_model(ts_df_prepro, context_param_var.get('window_values'),  unique_ids_fields, ro_s,
                                          context_param_var.get('metrics_crop_event'))
+    if not ts_df_input_NN is None:
+        ### apply the trained NN model on the window extracts
+        df_NN_prediction = apply_NN_model_crop_calendars(ts_df_input_NN, amount_metrics_model, context_param_var.get('thr_detection'),
+                                                         context_param_var.get('crop_calendar_event'), NN_model_dir)
+        df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction,  unique_ids_fields, context_param_var.get('index_window_above_thr'),
+                                                                context_param_var.get('max_gap_prediction'))
+        print(df_crop_calendars_result)
+        fields_no_prediction = list(set(unique_ids_fields)- set(list(df_crop_calendars_result.index)))
+        if fields_no_prediction:
+            for field in fields_no_prediction:
+                df_crop_calendars_result = pd.concat([df_crop_calendars_result, pd.DataFrame(index=[field], columns=['Harvest_date'], data=[np.nan])],axis=0)
+        df_crop_calendars_result = df_crop_calendars_result.sort_index()
+    else:
+        df_crop_calendars_result = pd.DataFrame(index = unique_ids_fields, data = np.nan, columns=['Harvest_date'])
 
-    ### apply the trained NN model on the window extracts
-    df_NN_prediction = apply_NN_model_crop_calendars(ts_df_input_NN, amount_metrics_model, context_param_var.get('thr_detection'),
-                                                     context_param_var.get('crop_calendar_event'), NN_model_dir)
-    df_crop_calendars_result = create_crop_calendars_fields(df_NN_prediction,  unique_ids_fields, context_param_var.get('index_window_above_thr'),
-                                                            context_param_var.get('max_gap_prediction'))
-    print(df_crop_calendars_result)
-    # return the predicted crop calendar events as a dict  (json format)
-    #udf_data.set_structured_data_list([StructuredData(description="crop calendar json",data=df_crop_calendars_result.to_dict(),type="dict")])
 
     gjson_path  = context_param_var.get('gjson')
     if type(gjson_path) == str:
