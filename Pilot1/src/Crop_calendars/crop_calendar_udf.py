@@ -22,15 +22,20 @@ def get_cropsar_TS(ts_df, unique_ids_fields, metrics_order, fAPAR_rescale_Openeo
     if not shub:
         df_S2 *= fAPAR_rescale_Openeo
     index_S1_ascending = metrics_order.index('sigma_ascending_VH')
-    df_S1_ascending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_S1_ascending), str(index_S1_ascending+1), str(index_S1_ascending +2)])].sort_index().T
+    df_S1_ascending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin(
+        [str(index_S1_ascending), str(index_S1_ascending + 1), str(index_S1_ascending + 2)])].sort_index().T
     index_S1_descending = metrics_order.index('sigma_descending_VH')
-    df_S1_descending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin([str(index_S1_descending), str(index_S1_descending+1), str(index_S1_descending +2)])].sort_index().T
+    df_S1_descending = ts_df.loc[:, ts_df.columns.get_level_values(1).isin(
+        [str(index_S1_descending), str(index_S1_descending + 1), str(index_S1_descending + 2)])].sort_index().T
     if Spark:
         if shub:
-            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending, scale=1, offset=0)
+            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending,
+                                                                                df_S1_descending, scale=1, offset=0)
         else:
-            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending, df_S1_descending)
-        cropsar_df = cropsar_df.rename(columns = dict(zip(list(cropsar_df.columns.values), [item+ '_cropSAR' for item in unique_ids_fields])))
+            cropsar_df, cropsar_df_q10, cropsar_df_q90 = run_cropsar_dataframes(df_S2, df_S1_ascending,
+                                                                                df_S1_descending)
+        cropsar_df = cropsar_df.rename(
+            columns=dict(zip(list(cropsar_df.columns.values), [item + '_cropSAR' for item in unique_ids_fields])))
         cropsar_df.index = pd.to_datetime(cropsar_df.index).date
     return cropsar_df
 # rename the columns to the name of the metric
@@ -293,6 +298,9 @@ def udf_cropcalendars(udf_data:UdfData):
 
     ts_df = timeseries_json_to_pandas(ts_dict)
     ts_df.index = pd.to_datetime(ts_df.index).date
+
+    if not isinstance(ts_df.columns, pd.MultiIndex): # in case one field no multindex so just add one
+        ts_df.columns = pd.MultiIndex.from_product([[0], ts_df.columns])
 
     # create identifiers for each field
     some_item_for_date = next(iter(ts_dict.values()))
