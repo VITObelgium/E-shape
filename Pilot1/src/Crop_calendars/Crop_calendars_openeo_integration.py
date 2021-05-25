@@ -158,18 +158,32 @@ class Cropcalendars():
 
     def generate_cropcalendars_local(self, start, end, gjson_path):
         timeseries = self.generate_cropcalendars_workflow(start, end, gjson_path, run_local= True)
-        timeseries = timeseries.execute()
-        with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE_test\TS\WIG_fields_TS_20190101_20191231.json", 'w') as json_file:
-            json.dump(timeseries, json_file)
+        #timeseries = timeseries.execute()
+        # with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE_test\TS\WIG_fields_TS_20190101_20191231.json", 'w') as json_file:
+        #     json.dump(timeseries, json_file)
         with open(r"S:\eshape\Pilot 1\results\Harvest_date\Code_testing\Field_BE_test\TS\WIG_fields_TS_20190101_20191231.json", 'r') as json_file:
             ts = json.load(json_file)
 
-        ts_dict = ts
-        df_metrics = timeseries_json_to_pandas(ts_dict)
-        df_metrics.index = pd.to_datetime(df_metrics.index)
 
-        from .crop_calendar_local import udf_cropcalendars_local
-        crop_calendars_df = udf_cropcalendars_local(ts_dict)
+
+
+        from openeo_udf.api.udf_data import UdfData
+        from openeo_udf.api.structured_data import StructuredData
+        from crop_calendar_udf import udf_cropcalendars
+
+        context_to_udf = dict({'window_values': self.window_values, 'thr_detection': self.thr_detection,
+                               'crop_calendar_event': self.crop_calendar_event,
+                               'metrics_crop_event': self.metrics_crop_event,
+                               'VH_VV_range_normalization': self.VH_VV_range_normalization,
+                               'fAPAR_range_normalization': self.fAPAR_range_normalization,
+                               'fAPAR_rescale_Openeo': self.fAPAR_rescale_Openeo,
+                               'index_window_above_thr': self.index_window_above_thr,
+                               'metrics_order': self.metrics_order, 'path_harvest_model': self.path_harvest_model,
+                               'shub': self.shub, 'max_gap_prediction': self.max_gap_prediction, 'gjson': gjson_path})
+
+        udfdata = UdfData({"EPSG:4326"}, structured_data_list= [StructuredData(description='timeseries input', data = ts, type = 'dict')])
+        udfdata.user_context = context_to_udf
+        crop_calendars_df = udf_cropcalendars(udfdata)
 
 
 
