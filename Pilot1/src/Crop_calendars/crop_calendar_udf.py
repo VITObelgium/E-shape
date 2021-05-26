@@ -393,7 +393,9 @@ def udf_cropcalendars(udf_data:UdfData):
 
 
     gjson_path  = context_param_var.get('gjson')
-    if type(gjson_path) == str:
+    from openeo_driver.delayed_vector import DelayedVector
+    if isinstance(gjson_path, DelayedVector):
+        gjson_path = gjson_path.path
         with open(gjson_path) as f:
             gjson = geojson.load(f)
     else:
