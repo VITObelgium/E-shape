@@ -13,7 +13,7 @@ ID_identifier = 'id' #the attribute column from which the unique IDS can be take
 ## define the window size for smoothing the data
 interp_window_size = 35 # the size of the window used in the SAVITSKY GOLAY filter
 days_period_search_SOS = 60 #the amount of days before the SOS data there are used to further fine-tune emergence detection
-TIMESAT_method = True
+TIMESAT_method = False
 
 ##define the dataset for which the emergence will be detected
 dict_shp_files = {} #-> should be structured like this: {'key_name of file': shapefile directory of file}
