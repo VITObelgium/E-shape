@@ -183,6 +183,7 @@ def filter_rain_S1(df, meteo_files, ID, rain_thr = 4):
     df_meteo.index = pd.to_datetime(df_meteo.index)
     df_meteo.index = [item.replace(tzinfo = None) for item in df_meteo.index]
     df.index = pd.to_datetime(df.index)
+
     df_meteo_reindex = df_meteo.reindex(df.index)
     dates_rain = df_meteo_reindex[df_meteo_reindex>rain_thr].dropna()
     if dates_rain.empty:
@@ -236,8 +237,9 @@ def preprocess_S1_data(indir_satellite_data, ID, key_file, coherence = False, ra
 
     if rain_filter:
         meteo_files = glob.glob(os.path.join(indir_satellite_data, 'Meteo', key_file,'*.csv'))
-        df_ascending_ID = filter_rain_S1(df_ascending_ID, meteo_files, ID)
-        df_descending_ID = filter_rain_S1(df_descending_ID, meteo_files, ID)
+        if not df_descending_ID is None and not df_ascending_ID is None:
+            df_ascending_ID = filter_rain_S1(df_ascending_ID, meteo_files, ID)
+            df_descending_ID = filter_rain_S1(df_descending_ID, meteo_files, ID)
 
     return df_ascending_ID, df_descending_ID
 
@@ -473,6 +475,23 @@ def find_unique_max_season_dates(df,thr_max_find = 70, thr_min_dip_inbetween = 2
     peak_dates_final.sort()
     return peak_dates_final
 
+def check_for_local_dip(df,df_dip_dates, min_diff_peak_dip = 20, min_diff_dips_same_season = 50, min_diff_dips = -2):
+    if df_dip_dates.shape[0]>2:
+        #check if previous dip is not higher than first dip before peak
+        if df_dip_dates[df_dip_dates.columns.values[0]].values[-2]-df_dip_dates[df_dip_dates.columns.values[0]].values[-1] >0:
+            df_dip_dates = df_dip_dates.drop(df_dip_dates.index.values[-2])
+
+
+    closest_peak = df[:df_dip_dates.index.values[-1]].loc[(df[:df_dip_dates.index.values[-1]].slope_peak == True)]
+    closest_peak_date = closest_peak.index.values[-1]
+    diff_closest_peak = (df_dip_dates.index.values[-1]-closest_peak_date)/ np.timedelta64(1,'D')
+    diff_dip_closest_peak = (df_dip_dates.index.values[-1]- df_dip_dates.index.values[-2])/ np.timedelta64(1,'D')
+    if diff_dip_closest_peak < min_diff_dips_same_season and diff_closest_peak < min_diff_peak_dip :
+        diff_dips_dB = df_dip_dates[df_dip_dates.columns.values[0]].values[-2] - df_dip_dates[df_dip_dates.columns.values[0]].values[-1]
+        if diff_dips_dB < min_diff_dips:
+            df_dip_dates = df_dip_dates.drop(df_dip_dates.index.values[-1])
+    return df_dip_dates
+
 
 def find_left_min(peak_dates, df, thr_min_dip = 15, offset_dip = 7):
     """
@@ -491,8 +510,17 @@ def find_left_min(peak_dates, df, thr_min_dip = 15, offset_dip = 7):
         #take the closest dip before the max
         df_dip_date = df[:date].loc[((df[:date].slope_dip == True)&
                                      (df[:date][columns[0]]< min_dip_value))]
+
+        ### additional check for local minimum -> For the moment skip this step
+        # if df_dip_date.shape[0]>1:
+        #     df_dip_date = check_for_local_dip(df,df_dip_date)
+
+        idx_peak = peak_dates.index(date)
+
         if not df_dip_date.empty:
             dip_date = df_dip_date.index.values[-1]
+            if idx_peak >0 and dip_date < peak_dates[idx_peak-1]:
+                continue
             dip_date = dip_date + np.timedelta64(offset_dip,'D')
             dip_dates.append(dip_date)
     return list(set(dip_dates))
