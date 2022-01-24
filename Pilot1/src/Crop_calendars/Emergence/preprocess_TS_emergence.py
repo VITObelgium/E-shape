@@ -69,8 +69,8 @@ def calc_VH_VV(df_input, orbit_pass = 'ASCENDING'):
     :param orbit_pass: identify for which orbit pass this needs to be done
     :return: the input dataframe with as additional column the VH/VV ratio
     """
-    df_input['VH/VV'] = 10 * np.log((df_input['sigma_{}_VH'.format(orbit_pass.lower())] )
-                                    / ((df_input['sigma_{}_VV'.format(orbit_pass.lower())] )))
+    df_input['VH/VV'] = 10 * np.log10((df_input['sigma_{}_VH'.format(orbit_pass.lower())] )
+                                      / ((df_input['sigma_{}_VV'.format(orbit_pass.lower())] )))
     return df_input
 
 def to_dB(df_input, metric):
@@ -80,7 +80,7 @@ def to_dB(df_input, metric):
     :param metric: the name of the metric that should be converted to decibels
     :return: the same dataframe, but with the metric now converted to decibels
     """
-    df_input[metric] = 10 * np.log(df_input[metric])
+    df_input[metric] = 10 * np.log10(df_input[metric])
     return df_input
 
 def plot_generator(df, ax1, row, col, color, metric, row_only = False, S1_VHVV = False, S2_bands = False, cropsar = False, S1_indv_polar = False,S1_coherence = False,
