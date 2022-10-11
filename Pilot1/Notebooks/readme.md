@@ -3,7 +3,7 @@
 1. **Emergence_detection_service.ipynb**
 
     This notebook will showcase on how the user can retrieve emergence dates for the input fields.
-    In-situ data retrieved from CropObserve was used to calibrate the model. Note that this model is calibrated on only a limited set of fields. A more robust model that     will be able to deal with estimating emergence of different crops across different regions will be available soon.
+    In-situ data retrieved from a field campaign was used to calibrate the model. Note that this model is calibrated on only a limited set of fields. A more robust model      that will be able to deal with estimating emergence of different crops across different regions will be available soon.
 
 2. **Harvest_detection_service.ipynb**
 
