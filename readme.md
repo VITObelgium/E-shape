@@ -21,3 +21,12 @@ In this repository the code used for the cropcalendars is provided. Currently on
   **Output**
   
   The ouput file is .json with as additional attribute the harvest date. You can easily visualize the result in GIS programs (QGIS). 
+  
+  ![image](https://user-images.githubusercontent.com/60655533/195083547-f0bf37d9-35b8-4377-b951-0adaa4a04505.png)
+  ![image](https://user-images.githubusercontent.com/60655533/195083577-f7895706-dbc5-4954-b573-0284be22e598.png)
+
+
+  
+  
+
+
